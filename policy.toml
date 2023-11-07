@@ -1,0 +1,12 @@
+[global]
+default_key = "a"
+block_unconfigured_client = false
+
+[client."127.0.0.1"]
+key = "b"
+
+[client."10.110.1.4"]
+key = "d"
+
+[user."test"]
+password = "asdf"

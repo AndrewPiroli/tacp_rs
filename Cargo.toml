@@ -1,0 +1,14 @@
+[workspace]
+members = ["tacp", "tacpd"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Andrew Piroli"]
+edition = "2021"
+license = "GPL-2.0-only OR GPL-3.0-only"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = true
