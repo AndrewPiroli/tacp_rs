@@ -1,4 +1,5 @@
 pub mod obfuscation;
+pub mod argvalpair;
 //https://datatracker.ietf.org/doc/html/rfc8907
 // All TACACS+ packets begin with the following 12-byte header.
 //  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
