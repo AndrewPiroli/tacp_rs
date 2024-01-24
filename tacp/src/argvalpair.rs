@@ -57,3 +57,23 @@ impl TryFrom<String> for ArgValPair {
         Err("No valid separator ('=' or '*') found!")
     }
 }
+impl ArgValPair {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut res = Vec::with_capacity(256);
+        res.extend(self.argument.as_bytes());
+        if self.optional {
+            res.push(b'*');
+        }
+        else {
+            res.push(b'=');
+        }
+        match &self.value {
+            Value::Numeric(num) => {res.extend(num.to_string().as_bytes());},
+            Value::Boolean(tf) => {res.extend(tf.to_string().as_bytes());},
+            Value::IPAddr(ip) => {res.extend(ip.to_string().as_bytes());},
+            Value::Str(s) => {res.extend(s.as_bytes());},
+            Value::Empty => {},
+        }
+        res
+    }
+}

@@ -1,3 +1,5 @@
+use argvalpair::ArgValPair;
+
 pub mod obfuscation;
 pub mod argvalpair;
 //https://datatracker.ietf.org/doc/html/rfc8907
@@ -474,7 +476,7 @@ pub struct AuthorRequestPacket {
     pub user: Vec<u8>,
     pub port: Vec<u8>,
     pub rem_addr: Vec<u8>,
-    pub args: Vec<Vec<u8>>,
+    pub args: Vec<ArgValPair>,
     pub len: usize,
 }
 
@@ -525,7 +527,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
             ptr = bounds_check(pkt_size, ptr+this_arg_len, file!(), line!())?;
             let mut temp = vec!(0; this_arg_len);
             temp.copy_from_slice(&value[(ptr-this_arg_len)..ptr]);
-            args.push(temp);
+            args.push(ArgValPair::try_from(String::from_utf8_lossy(&temp).into_owned())?);
         }
 
         Ok(AuthorRequestPacket {
@@ -564,13 +566,14 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
 #[derive(Debug, Clone)]
 pub struct AuthorReplyPacket {
     pub status: AuthorStatus,
-    pub args: Vec<Vec<u8>>,
+    pub args: Vec<ArgValPair>,
     pub server_msg: Vec<u8>,
     pub data: Vec<u8>,
 }
 
 impl AuthorReplyPacket {
     pub fn encode(&self) -> Vec<u8> {
+        let args = self.args.iter().map(|c|c.to_bytes()).collect::<Vec<_>>();
         let mut ret = Vec::with_capacity(self.len());
         ret.push(self.status as u8);
         ret.push(self.args.len() as u8);
@@ -580,18 +583,18 @@ impl AuthorReplyPacket {
         let data_len = self.data.len();
         ret.push(((data_len >> 8 )& 0xff) as u8); // endian
         ret.push((data_len & 0xff) as u8);
-        for arg in self.args.iter() {
+        for arg in args.iter() {
             ret.push(arg.len() as u8);
         }
         ret.extend(self.server_msg.iter());
         ret.extend(self.data.iter());
-        for arg in self.args.iter() {
+        for arg in args.iter() {
             ret.extend(arg.iter());
         }
         ret
     }
     pub fn len(&self) -> usize {
-        6 + self.args.len() + self.server_msg.len() + self.data.len() + self.args.iter().map(|arg|arg.len()).sum::<usize>()
+        6 + self.args.len() + self.server_msg.len() + self.data.len() + self.args.iter().map(|arg|arg.to_bytes().len()).sum::<usize>()
     }
 }
 
@@ -643,7 +646,7 @@ pub struct AcctRequestPacket {
     pub user: Vec<u8>,
     pub port: Vec<u8>,
     pub rem_addr: Vec<u8>,
-    pub args: Vec<Vec<u8>>,
+    pub args: Vec<ArgValPair>,
     pub len: usize,
 }
 #[derive(Debug, Clone, Copy)]
