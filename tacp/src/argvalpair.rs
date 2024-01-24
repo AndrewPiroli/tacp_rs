@@ -35,22 +35,35 @@ impl TryFrom<String> for ArgValPair {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if let Some(seplen) = value.find('=') {
-            let (arg, val) = value.split_at(seplen);
-            return Ok(
-                Self {
-                    argument: arg.to_owned(),
-                    value: Value::from(val),
-                    optional: true,
-                }
-            )
-        }
-        if let Some(seplen) = value.find('*') {
-            let (arg, val) = value.split_at(seplen);
+            let (arg, mut val) = value.split_at(seplen);
+            // remove separator
+            if val.len() == 1 {
+                val = "";
+            }
+            else {
+                val = &val[1..];
+            }
             return Ok(
                 Self {
                     argument: arg.to_owned(),
                     value: Value::from(val),
                     optional: false,
+                }
+            )
+        }
+        if let Some(seplen) = value.find('*') {
+            let (arg, mut val) = value.split_at(seplen);
+            if val.len() == 1 {
+                val = "";
+            }
+            else {
+                val = &val[1..];
+            }
+            return Ok(
+                Self {
+                    argument: arg.to_owned(),
+                    value: Value::from(val),
+                    optional: true,
                 }
             )
         }
