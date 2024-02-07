@@ -14,6 +14,7 @@ mod policy;
 type PacketBuf = [u8;256];
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+/// Tracks current client authentication state within a session
 enum AuthenState {
     None,
     ASCIIGETUSER,
@@ -21,18 +22,30 @@ enum AuthenState {
 }
 
 #[derive(Debug, Clone)]
+/// Represents reply packets from the server to the client
 enum SrvPacket {
+    /// Authen REPLY packet (may or may not terminate session)
     AuthenReply(AuthenReplyPacket),
+    /// Acknowledge a client AUTH packet with the client abort flag set (terminates session).
+    /// The attached String is a message from the client with an explanation, it is logged to the console.
     AuthenClientAbort(String),
+    /// An Authen REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AuthenGenericError(Option<Vec<u8>>),
+    /// Author REPLY packet (terminates session)
     AuthorReply(AuthorReplyPacket),
+    /// Author REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AuthorGenericError(Option<Vec<u8>>),
+    /// Acct REPLY packet (terminates session)
     AcctReply(AcctReplyPacket),
+    /// Acct REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AcctGenericError(Option<Vec<u8>>),
 }
 
-/// More secure than String (still not secure!!)
 #[derive(Clone, Hash, Default)]
+/// A String wrapper designed to hold secrets.
+/// It's main purpose is to prevent the unintentional logging of said secrets.
+/// This is acomplished by not implementing `Display` and manually implementing `Debug`.
+/// Any other security is not a hard goal, but it does attempt to clear it's own memory on destruction.
 struct SString(String);
 impl Drop for SString {
     fn drop(&mut self) {
@@ -62,12 +75,16 @@ impl SString {
 
 
 #[derive(Debug, Clone, Hash, Default)]
+/// The currently known info about a clients authentication attempt
+/// When a client is done giving us info, this struct is used to determine
+/// if authentication will PASS or FAIL
 struct AuthenInfo {
     pub username: Option<String>,
     pub pass: Option<SString>,
 }
 
 #[derive(Debug, Clone, Hash)]
+/// Main client state. One per session.
 struct Client {
     addr: std::net::SocketAddr,
     session: SessionID,
@@ -78,8 +95,11 @@ struct Client {
 }
 
 #[derive(Debug, Default)]
-struct GlobalState(FnvHashMap<SessionID, Client>);
-static GLOBAL_STATE: OnceLock<Mutex<GlobalState>> = OnceLock::new();
+/// Maps sessions to the corresponding state. One per server shard (sharding not implemented)
+struct ServerState(FnvHashMap<SessionID, Client>);
+/// Application wide instance of the state
+static GLOBAL_STATE: OnceLock<Mutex<ServerState>> = OnceLock::new();
+/// Application wide instance of the policy
 static POLICY: OnceLock<Policy> = OnceLock::new();
 
 fn main() {

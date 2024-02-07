@@ -4,16 +4,19 @@ use fnv::FnvHashMap;
 use crate::SString;
 
 #[derive(Debug, Clone, Default)]
+/// Describes the administrative policy of a specific client
 pub(crate) struct ClientPolicy {
     pub key: Option<SString>,
 }
 
 #[derive(Debug, Clone)]
+/// Describes the administrative policy of a specific user account
 pub(crate) struct UserPolicy {
     pub password: Option<SString>,
 }
 
 #[derive(Debug, Clone, Default)]
+/// Describes the entire administrative policy of the server
 pub(crate) struct Policy {
     pub default_key: Option<SString>,
     pub clients: FnvHashMap<IpAddr, ClientPolicy>,
