@@ -7,3 +7,4 @@ edition.workspace = true
 
 [dependencies]
 md5 = { package = "md-5", version = "~0.10.6", default-features = false, features = ["std"] }
+tracing = { version = "~0.1.40", default-features = false, features = ["attributes", "std", "tracing-attributes", "release_max_level_info"] }

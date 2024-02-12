@@ -2,6 +2,7 @@ use std::{error::Error, net::IpAddr};
 use toml::Table;
 use fnv::FnvHashMap;
 use crate::SString;
+use tracing::{error, info, instrument};
 
 #[derive(Debug, Clone, Default)]
 /// Describes the administrative policy of a specific client
@@ -24,6 +25,7 @@ pub(crate) struct Policy {
     pub allow_unconfigured: bool,
 }
 
+#[instrument]
 pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
     let mut ret: Policy = Default::default();
     let policy_file = std::fs::read_to_string("policy.toml")?.parse::<Table>()?;
@@ -55,7 +57,8 @@ pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
                             }
                         }
                         else {
-                            // log error
+                            error!(outer_section = ?val, client = ?maybe_ip, client_config = ?client_policy,
+                                "Invalid client section in policy.");
                             continue;
                         }
                     }
@@ -73,13 +76,16 @@ pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
                                     ret.users.get_mut(username).unwrap().password = Some(SString(user_pass.as_str().unwrap().into()));
                                 }
                         }
-                        else { /* log error */ continue; }
+                        else {
+                            error!(outer = ?val, user= ?username, policy = ?user_policy, "Failed to parse user section");
+                            continue;
+                        }
                     }
                 }
             }
             _ => {},
         }
     }
-    dbg!(&ret);
+    info!(policy = ?ret, "Final Parsed Policy");
     return Ok(ret);
 }

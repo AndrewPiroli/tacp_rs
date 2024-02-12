@@ -9,6 +9,8 @@ use smallvec::*;
 use fnv::FnvHashMap;
 use std::sync::OnceLock;
 use std::ops::Deref;
+use tracing::{error, info, instrument, Level, debug};
+use tracing_subscriber;
 
 mod policy;
 type PacketBuf = [u8;256];
@@ -103,13 +105,14 @@ static GLOBAL_STATE: OnceLock<Mutex<ServerState>> = OnceLock::new();
 static POLICY: OnceLock<Policy> = OnceLock::new();
 
 fn main() {
+    tracing_subscriber::fmt::init();
     GLOBAL_STATE.set(Default::default()).unwrap();
     match policy::load() {
         Ok(pol) => {
             POLICY.set(pol).unwrap();
         },
         Err(e) => {
-            println!("Failed to load policy {e}");
+            error!("Failed to load policy {e}");
             return;
         },
     }
@@ -123,12 +126,12 @@ fn main() {
     });
 }
 
-
+#[instrument]
 async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
     let policy = POLICY.get().unwrap();
     if !policy.clients.contains_key(&addr.ip()) {
         if !policy.allow_unconfigured {
-            println!("Unconfigured client: {addr} disallowed");
+            error!("Unconfigured client disallowed");
             return;
         }
     }
@@ -138,18 +141,22 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         (Some(ck), None) |
         (Some(ck), Some(_)) => ck,
         (None, None) => {
-            println!("No client key and no default key");
+            error!("No client key and no default key");
             return;
         },
     };
+    debug!(policy = ?client_policy, "client setup done");
     loop {
         let mut header = [0;12];
-        if stream.read(&mut header).await.is_err() {
-            break;
+        match stream.read_exact(&mut header).await {
+            Ok(_) => { /* read exact */}
+            Err(e) => {
+                error!(err = ?e, "Error reading packet header from stream.");
+            }
         }
         let parsed_header = PacketHeader::try_from(&header).unwrap();
         if parsed_header.seq_no % 2 == 0 {
-            // Client MUST send odd seq_nos
+            error!(seq_no = ?parsed_header.seq_no, "Clients MUST send odd sequence numbers.");
             break;
         }
         let mut cstate: Client;
@@ -170,13 +177,19 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             }
         }
         if addr != cstate.addr || parsed_header.seq_no < cstate.seq_no {
+            error!(state_addr = ?cstate.addr, our_seq = ?parsed_header.seq_no, state_seq = ?cstate.seq_no,
+                "Internal consistency error. Malicious client or stale entry in global state");
             break;
         }
-        dbg!(parsed_header);
+        debug!(?parsed_header);
         let mut packet: SmallVec<PacketBuf> = SmallVec::with_capacity(parsed_header.length as usize);
         packet.resize_with(parsed_header.length as usize, Default::default);
-        if stream.read(&mut packet).await.is_err() {
-            break;
+        match stream.read_exact(&mut packet).await {
+            Ok(_) => {},
+            Err(e) => {
+                error!(err = ?e, "Error reading packet body from stream");
+                break;
+            }
         }
         obfuscate_in_place(parsed_header, key.as_bytes(), &mut packet);
         let reply = match parsed_header.ty {
@@ -303,7 +316,10 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         {
             let mut gs = GLOBAL_STATE.get().unwrap().lock().unwrap();
             if terminate_session {
-                gs.0.remove(&cstate.session);
+                info!(session = ?cstate.session, "Session terminated");
+                if gs.0.remove(&cstate.session).is_none() {
+                    error!(session = ?cstate.session, "Internal consistency error, no client state for this session.")
+                }
                 break;
             }
             else {
@@ -311,21 +327,23 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     *cs = cstate;
                 }
                 else {
-                    panic!();
+                    error!(session = ?cstate.session, "Internal consistency error, no client state for session.");
+                    break;
                 }
             }
         }
         tokio::task::yield_now().await;
     }
-    println!("Connection terminated");
 }
 
+#[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
     stream.write(&header.encode()).await?;
     stream.write(&obfuscated_body).await?;
     Ok(())
 }
 
+#[instrument]
 fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     hexdump::hexdump(&packet);
     match cstate.authen_state {
@@ -407,7 +425,6 @@ fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::R
     if pkt.len() != expected_length {
         return Err("Failed length check".to_owned());
     }
-    // dbg!(&pkt);
     Ok(pkt)
 }
 
@@ -485,7 +502,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket) -> SrvPacket {
     return SrvPacket::AuthenReply(ret);
 }
 
-
+#[instrument]
 fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cstate: &mut Client) -> SrvPacket {
     let pkt = AuthorRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
@@ -516,6 +533,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
     return SrvPacket::AuthorReply(ret);
 }
 
+#[instrument]
 fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cstate: &mut Client) -> SrvPacket {
     hexdump::hexdump(packet.deref());
     let pkt = AcctRequestPacket::try_from(packet.deref());
