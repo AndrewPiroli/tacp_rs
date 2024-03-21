@@ -9,8 +9,7 @@ use smallvec::*;
 use fnv::FnvHashMap;
 use std::sync::OnceLock;
 use std::ops::Deref;
-use tracing::{error, info, instrument, Level, debug};
-use tracing_subscriber;
+use tracing::{error, info, instrument, debug};
 
 mod policy;
 type PacketBuf = [u8;256];
@@ -348,15 +347,15 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
     hexdump::hexdump(&packet);
     match cstate.authen_state {
         AuthenState::None => { // We have nothing so far, so this is a AUTHEN START packet
+            info!("Authen START");
             let pkt = AuthenStartPacket::try_from(packet.deref());
             if pkt.is_err() {
+                error!("Packet Parse Failure");
                 return SrvPacket::AuthenGenericError(Some(pkt.unwrap_err().into()));
             }
             let pkt = pkt.unwrap();
-            dbg!(&pkt.action);
-            dbg!(&pkt.authen_type);
-            dbg!(&pkt.authen_svc);
             if pkt.len != expected_length { // probably key failure
+                error!(expected = ?expected_length, actual = ?pkt.len, "Packet len does not match expected. Probable key failure");
                 return SrvPacket::AuthenGenericError(Some(Vec::from(b"pkt len does not match header len")));
             }
             match pkt.authen_type {
@@ -371,12 +370,15 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             let pkt = parse_authen_continue(packet.deref(), expected_length).unwrap();
             if pkt.abort {
                 let reason = String::from_utf8_lossy(&pkt.data);
+                info!(reason = ?reason, "Client Aborted Authentication Session");
                 return SrvPacket::AuthenClientAbort(reason.into());
             }
             if pkt.user_msg.is_empty() {
+                error!("Server request username but none provided");
                 return SrvPacket::AuthenGenericError(Some(Vec::from(b"Server requested username but none provided"))); // We asked for a username
             }
             cstate.authen_info.username = Some(String::from_utf8_lossy(&pkt.user_msg).into());
+            debug!(username = ?cstate.authen_info.username, "Client provides username");
             let ret = AuthenReplyPacket {
                 status: AuthenReplyStatus::GETPASS,
                 flags: 1 << REPLY_FLAG_NOECHO,
@@ -384,6 +386,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                 data: Vec::with_capacity(0),
             };
             cstate.authen_state = AuthenState::ASCIIGETPASS;
+            info!("requesting ascii password from client");
             return SrvPacket::AuthenReply(ret);
         },
         AuthenState::ASCIIGETPASS => {
@@ -420,6 +423,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
     }
 }
 
+#[instrument]
 fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<AuthenContinuePacket, <AuthenContinuePacket as TryFrom<&[u8]>>::Error> {
     let pkt = AuthenContinuePacket::try_from(data)?;
     if pkt.len() != expected_length {
