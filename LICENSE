@@ -1,5 +1,2 @@
-This project is dual-licensed GPLv2 and GPLv3.
-
-Read GPLv2 here: https://www.gnu.org/licenses/old-licenses/gpl-2.0-standalone.html
-Read GPLv3 here: https://www.gnu.org/licenses/gpl-3.0-standalone.html
-
+The base definitions crate (`tacp`) is dual licensed MIT OR Apache-2.0.
+The reference server implementation crate (`tacpd`) is dual licensed GPLv2 OR GPLv3. There is no "or later" clause, future versions of the GPL do not apply.
