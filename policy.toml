@@ -5,8 +5,8 @@ block_unconfigured_client = false
 [client."127.0.0.1"]
 key = "b"
 
-[client."10.110.1.4"]
-key = "d"
+[client."10.110.1.95"]
+key = "qwerty"
 
 [user."test"]
 password = "asdf"
