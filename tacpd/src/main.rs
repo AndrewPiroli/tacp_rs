@@ -539,7 +539,6 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
 
 #[instrument]
 fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cstate: &mut Client) -> SrvPacket {
-    hexdump::hexdump(packet.deref());
     let pkt = AcctRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
         return SrvPacket::AcctGenericError(Some(Vec::from(b"Failed to parse")));
@@ -549,20 +548,11 @@ fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _csta
         dbg!((pkt.len, expected_length));
         return SrvPacket::AcctGenericError(Some(Vec::from(b"Length mismatch")));
     }
-    // for now we just approve everthing from a user we know
-    let ret = if POLICY.get().unwrap().users.contains_key(&String::from_utf8_lossy(&pkt.user).to_string()) {
-        AcctReplyPacket {
-            status: AcctStatus::SUCCESS,
-            server_msg: Vec::from(b"Approved (FIXME)"),
-            data: Vec::with_capacity(0),
-        }
-    }
-    else {
-        AcctReplyPacket {
-            status: AcctStatus::ERROR,
-            server_msg: Vec::from(b"Unknown user"),
-            data: Vec::with_capacity(0),
-        }
+    // for now we just tell them we were able to log everthing
+    let ret = AcctReplyPacket {
+        status: AcctStatus::SUCCESS,
+        server_msg: Vec::from(b"Ok (FIXME)"),
+        data: Vec::with_capacity(0),
     };
     return SrvPacket::AcctReply(ret);
 }
