@@ -116,12 +116,14 @@ impl TryFrom<&[u8;12]> for PacketHeader {
             ty: PacketType::try_from(value[1])?,
             seq_no: u8::from_be(value[2]),
             flags: u8::from_be(value[3]),
-            session_id: session_id,
-            length: length,
+            session_id,
+            length,
         })
     }
 }
+
 impl PacketHeader {
+    #[allow(clippy::zero_prefixed_literal, clippy::identity_op)]
     pub fn encode(&self) -> Vec<u8> {
         let mut res = Vec::with_capacity(12);
         res.push(self.version);
@@ -324,6 +326,8 @@ pub struct AuthenReplyPacket {
     pub serv_msg: Vec<u8>,
     pub data: Vec<u8>,
 }
+
+#[allow(clippy::len_without_is_empty)]
 impl AuthenReplyPacket {
     pub fn encode(&self) -> Vec<u8> {
         let mut res = Vec::with_capacity(self.len());
@@ -386,6 +390,8 @@ impl TryFrom<&[u8]> for AuthenContinuePacket {
         )
     }
 }
+
+#[allow(clippy::len_without_is_empty)]
 impl AuthenContinuePacket {
     pub fn len(&self) -> usize {
         5 + self.user_msg.len() + self.data.len()
@@ -483,6 +489,7 @@ pub struct AuthorRequestPacket {
 impl TryFrom<&[u8]> for AuthorRequestPacket {
     type Error = &'static str;
 
+    #[allow(clippy::needless_range_loop)] // false positive
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         fn bounds_check(pkt_size: usize, ptr: usize, file: &'static str, line: u32) -> Result<usize, &'static str> {
             if ptr > pkt_size {
@@ -539,7 +546,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
             port,
             rem_addr,
             args,
-            len: ptr as usize,
+            len: ptr,
         })
     }
 }
@@ -571,6 +578,7 @@ pub struct AuthorReplyPacket {
     pub data: Vec<u8>,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl AuthorReplyPacket {
     pub fn encode(&self) -> Vec<u8> {
         let args = self.args.iter().map(|c|c.to_bytes()).collect::<Vec<_>>();
@@ -716,6 +724,7 @@ pub struct AcctReplyPacket {
     pub data: Vec<u8>,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl AcctReplyPacket {
     pub fn encode(&self) -> Vec<u8> {
         let server_msg_len = self.server_msg.len();

@@ -9,9 +9,10 @@ pub enum Value {
     Str(String),
     Empty,
 }
+
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        if value.len() == 0 { return Self::Empty }
+        if value.is_empty() { return Self::Empty }
         if value == "true" || value == "false" { return Self::Boolean(value == "true") }
         if let Ok(ip) = value.parse::<IpAddr>() {
             return Self::IPAddr(ip);

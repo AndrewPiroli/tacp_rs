@@ -1,4 +1,6 @@
 #![feature(let_chains)]
+#![allow(clippy::needless_return, clippy::upper_case_acronyms)]
+#![deny(clippy::await_holding_lock)]
 use std::sync::Mutex;
 use policy::Policy;
 use tacp::*;
@@ -128,11 +130,9 @@ fn main() {
 #[instrument]
 async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
     let policy = POLICY.get().unwrap();
-    if !policy.clients.contains_key(&addr.ip()) {
-        if !policy.allow_unconfigured {
-            error!("Unconfigured client disallowed");
-            return;
-        }
+    if !policy.clients.contains_key(&addr.ip()) && !policy.allow_unconfigured {
+        error!("Unconfigured client disallowed");
+        return;
     }
     let client_policy = policy.clients.get(&addr.ip()).cloned().unwrap_or_default();
     let key = match (&client_policy.key, &policy.default_key) {
@@ -321,14 +321,12 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 }
                 break;
             }
+            else if let Some(cs) = gs.0.get_mut(&cstate.session) {
+                *cs = cstate;
+            }
             else {
-                if let Some(cs) = gs.0.get_mut(&cstate.session) {
-                    *cs = cstate;
-                }
-                else {
-                    error!(session = ?cstate.session, "Internal consistency error, no client state for session.");
-                    break;
-                }
+                error!(session = ?cstate.session, "Internal consistency error, no client state for session.");
+                break;
             }
         }
         tokio::task::yield_now().await;
@@ -337,8 +335,9 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
 
 #[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
-    stream.write(&header.encode()).await?;
-    stream.write(&obfuscated_body).await?;
+    let mut reply = header.encode();
+    reply.extend_from_slice(obfuscated_body);
+    stream.write_all(&reply).await?;
     Ok(())
 }
 
@@ -401,23 +400,23 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             cstate.authen_info.pass = Some(
                 SString(String::from_utf8_lossy(&pkt.user_msg).into())
             );
-            let ret: AuthenReplyPacket;
-            if check_auth(&cstate.authen_info) {
-                ret = AuthenReplyPacket {
-                    status: AuthenReplyStatus::PASS,
-                    flags: 0,
-                    serv_msg: Vec::from(b"Authentication Pass"),
-                    data: Vec::with_capacity(0),
+            let ret: AuthenReplyPacket =
+                if check_auth(&cstate.authen_info) {
+                    AuthenReplyPacket {
+                        status: AuthenReplyStatus::PASS,
+                        flags: 0,
+                        serv_msg: Vec::from(b"Authentication Pass"),
+                        data: Vec::with_capacity(0),
+                    }
+                }
+                else {
+                    AuthenReplyPacket {
+                        status: AuthenReplyStatus::FAIL,
+                        flags: 0,
+                        serv_msg: Vec::from(b"Authentication Fail"),
+                        data: Vec::with_capacity(0),
+                    }
                 };
-            }
-            else {
-                ret = AuthenReplyPacket {
-                    status: AuthenReplyStatus::FAIL,
-                    flags: 0,
-                    serv_msg: Vec::from(b"Authentication Fail"),
-                    data: Vec::with_capacity(0),
-                };
-            }
             return SrvPacket::AuthenReply(ret);
         },
     }
@@ -486,23 +485,23 @@ fn authen_start_pap(pkt: &AuthenStartPacket) -> SrvPacket {
         username: Some(String::from_utf8_lossy(&pkt.user).into()),
         pass: Some(SString(String::from_utf8_lossy(&pkt.data).into())),
     };
-    let ret: AuthenReplyPacket;
-    if check_auth(&info) {
-        ret = AuthenReplyPacket {
-            status: AuthenReplyStatus::PASS,
-            flags: 0,
-            serv_msg: Vec::from(b"PAP Authentication PASS"),
-            data: Vec::with_capacity(0),
+    let ret =
+        if check_auth(&info) {
+            AuthenReplyPacket {
+                status: AuthenReplyStatus::PASS,
+                flags: 0,
+                serv_msg: Vec::from(b"PAP Authentication PASS"),
+                data: Vec::with_capacity(0),
+            }
+        }
+        else {
+            AuthenReplyPacket {
+                status: AuthenReplyStatus::FAIL,
+                flags: 0,
+                serv_msg: Vec::from(b"PAP Authentication FAIL"),
+                data: Vec::with_capacity(0),
+            }
         };
-    }
-    else {
-        ret = AuthenReplyPacket {
-            status: AuthenReplyStatus::FAIL,
-            flags: 0,
-            serv_msg: Vec::from(b"PAP Authentication FAIL"),
-            data: Vec::with_capacity(0),
-        };
-    }
     return SrvPacket::AuthenReply(ret);
 }
 

@@ -17,7 +17,7 @@ use md5::{Md5, Digest};
 /// When a server detects that the secrets it has configured for the device do not match, it MUST return ERROR.
 /// 
 
-
+#[allow(clippy::zero_prefixed_literal, clippy::identity_op)]
 pub fn gen_psuedo_pad(header: PacketHeader, shared_secret: &[u8]) -> Vec<u8> {
     let len = header.length as usize;
     // Endianness !
