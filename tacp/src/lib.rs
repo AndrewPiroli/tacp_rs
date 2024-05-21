@@ -719,7 +719,7 @@ pub struct AcctReplyPacket {
 impl AcctReplyPacket {
     pub fn encode(&self) -> Vec<u8> {
         let server_msg_len = self.server_msg.len();
-        let data_len = self.server_msg.len();
+        let data_len = self.data.len();
         let mut ret = Vec::with_capacity(5 + server_msg_len + data_len);
         ret.push(((server_msg_len >> 8) & 0xff) as u8);
         ret.push((server_msg_len & 0xff) as u8);
