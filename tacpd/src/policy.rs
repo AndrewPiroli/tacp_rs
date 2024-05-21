@@ -1,5 +1,6 @@
 use std::{error::Error, net::IpAddr};
 use toml::Table;
+use yaml::StrictYamlLoader;
 use fnv::FnvHashMap;
 use crate::SString;
 use tracing::{error, info, instrument};
@@ -28,7 +29,24 @@ pub(crate) struct Policy {
 #[instrument]
 pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
     let mut ret: Policy = Default::default();
-    let policy_file = std::fs::read_to_string("policy.toml")?.parse::<Table>()?;
+    let mut policy_file = StrictYamlLoader::load_from_str(&std::fs::read_to_string("policy.yaml")?)?;
+    if policy_file.len() != 1 {
+        panic!(); // fixme
+    }
+    let policy_file = policy_file.pop().unwrap();
+    let root = policy_file.as_hash().unwrap();
+    for (section, val) in root {
+        dbg!(section, val);
+        match section.as_str().unwrap() {
+            "global" |
+            "clients" |
+            "users" |
+            "groups" => {}
+            _ => { panic!() }
+        }
+    }
+    panic!();
+    /*
     for (section, val) in policy_file {
         match section.as_str() {
             "global" => {
@@ -87,5 +105,6 @@ pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
         }
     }
     info!(policy = ?ret, "Final Parsed Policy");
+    */
     return Ok(ret);
 }

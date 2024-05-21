@@ -1,0 +1,16 @@
+global:
+  default-key: a
+  block-unconfigured: false
+clients:
+  127.0.0.1:
+    key: b
+  10.110.1.95:
+    key: qwerty
+    groups: test-group testing2
+users:
+  test:
+    password: asdf
+    groups: testing2
+groups:
+  test-group:
+  testing2:
