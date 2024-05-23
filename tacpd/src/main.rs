@@ -507,7 +507,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket) -> SrvPacket {
 }
 
 #[instrument]
-fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cstate: &mut Client) -> SrvPacket {
+fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     let pkt = AuthorRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
         return SrvPacket::AuthorGenericError(Some(Vec::from(b"Failed to parse")));
@@ -520,12 +520,12 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
     //fixme fixme fixme
     let mut cmd: Option<String> = None;
     for avp in pkt.args.iter() {
-        if avp.argument.as_str() == "cmd" {
+        if &avp.argument == "cmd" {
             match &avp.value {
                 Value::Str(x) => {
                     cmd = Some(x.clone());
                 }
-                _ => {break;}
+                _ => { break; }
             }
         }
     }
@@ -539,7 +539,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
     }
     let cmd = cmd.unwrap();
     // fixme
-    let res = policy::enforce::authorize(POLICY.get().unwrap(), "0.0.0.0".parse().unwrap(), &String::from_utf8_lossy(&pkt.user), &cmd);
+    let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &cmd);
     let ret = if res {
         AuthorReplyPacket {
             status: AuthorStatus::PASS_ADD,
@@ -552,7 +552,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
         AuthorReplyPacket {
             status: AuthorStatus::FAIL,
             args: Vec::with_capacity(0),
-            server_msg: Vec::from(b"Unauthorized"),
+            server_msg: Vec::from(b"Denied"),
             data: Vec::with_capacity(0),
         }
     };

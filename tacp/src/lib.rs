@@ -1,4 +1,10 @@
+#![no_std]
+extern crate alloc;
+use alloc::string::String;
+use alloc::{format, vec};
+use alloc::vec::Vec;
 use argvalpair::ArgValPair;
+use tracing::debug;
 
 pub mod obfuscation;
 pub mod argvalpair;
@@ -493,7 +499,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         fn bounds_check(pkt_size: usize, ptr: usize, file: &'static str, line: u32) -> Result<usize, &'static str> {
             if ptr > pkt_size {
-                println!("oob at {file}:{line}");
+                debug!("oob at {file}:{line}");
                 Err("out of bounds")
             }
             else {

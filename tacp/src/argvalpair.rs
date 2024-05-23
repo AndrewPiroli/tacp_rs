@@ -1,7 +1,9 @@
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use alloc::borrow::ToOwned;
+use core::net::IpAddr;
 
-use std::net::IpAddr;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Numeric(f64),
     Boolean(bool),

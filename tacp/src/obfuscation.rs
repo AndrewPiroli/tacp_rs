@@ -1,4 +1,5 @@
 use crate::PacketHeader;
+use alloc::vec::Vec;
 use md5::{Md5, Digest};
 
 /// The packet body can then be de-obfuscated by XORing it bytewise with a pseudo-random pad.
