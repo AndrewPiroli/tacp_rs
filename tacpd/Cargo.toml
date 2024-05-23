@@ -14,3 +14,4 @@ fnv = { version = "~1.0.7", default-features = false, features = ["std"] }
 yaml = { package = "strict-yaml-rust", version = "~0.1.2", default-features = false }
 tracing = { version = "~0.1.40", default-features = false, features = ["attributes", "std", "tracing-attributes", "release_max_level_info"] }
 tracing-subscriber = { version = "~0.3.18", default-features = false, features = ["alloc", "ansi", "fmt", "nu-ansi-term", "registry", "sharded-slab", "smallvec", "std", "thread_local", "env-filter"] }
+regex = { version = "~1.10.4", default-features = false, features = ["std", "perf", "unicode"] }

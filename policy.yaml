@@ -13,4 +13,8 @@ users:
     groups: testing2
 groups:
   test-group:
+    author_policy: |
+      default allow
+      deny configure.*
   testing2:
+    authen_policy

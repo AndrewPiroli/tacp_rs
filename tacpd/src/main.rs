@@ -3,6 +3,7 @@
 #![deny(clippy::await_holding_lock)]
 use std::sync::Mutex;
 use policy::Policy;
+use tacp::argvalpair::Value;
 use tacp::*;
 use tacp::obfuscation::obfuscate_in_place;
 use tokio::net::{TcpListener, TcpStream};
@@ -108,7 +109,7 @@ static POLICY: OnceLock<Policy> = OnceLock::new();
 fn main() {
     tracing_subscriber::fmt::init();
     GLOBAL_STATE.set(Default::default()).unwrap();
-    match policy::load() {
+    match policy::parse::load() {
         Ok(pol) => {
             POLICY.set(pol).unwrap();
         },
@@ -516,12 +517,34 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
         dbg!((pkt.len, expected_length));
         return SrvPacket::AuthorGenericError(Some(Vec::from(b"Packet length mismatch")));
     }
-    // for now we just approve everthing from a user we know
-    let ret = if POLICY.get().unwrap().users.contains_key(&String::from_utf8_lossy(&pkt.user).to_string()) {
+    //fixme fixme fixme
+    let mut cmd: Option<String> = None;
+    for avp in pkt.args.iter() {
+        if avp.argument.as_str() == "cmd" {
+            match &avp.value {
+                Value::Str(x) => {
+                    cmd = Some(x.clone());
+                }
+                _ => {break;}
+            }
+        }
+    }
+    if cmd.is_none() {
+        return SrvPacket::AuthorReply(AuthorReplyPacket {
+            status: AuthorStatus::FAIL, // fixme; use reply
+            args: Vec::with_capacity(0),
+            server_msg: Vec::from("No cmd argument. Can not authorize!"),
+            data: Vec::with_capacity(0),
+        });
+    }
+    let cmd = cmd.unwrap();
+    // fixme
+    let res = policy::enforce::authorize(POLICY.get().unwrap(), "0.0.0.0".parse().unwrap(), &String::from_utf8_lossy(&pkt.user), &cmd);
+    let ret = if res {
         AuthorReplyPacket {
             status: AuthorStatus::PASS_ADD,
             args: Vec::with_capacity(0),
-            server_msg: Vec::from(b"Approved (FIXME)"),
+            server_msg: Vec::from(b"Approved"),
             data: Vec::with_capacity(0),
         }
     }
@@ -529,7 +552,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cs
         AuthorReplyPacket {
             status: AuthorStatus::FAIL,
             args: Vec::with_capacity(0),
-            server_msg: Vec::from(b"Unknown user"),
+            server_msg: Vec::from(b"Unauthorized"),
             data: Vec::with_capacity(0),
         }
     };

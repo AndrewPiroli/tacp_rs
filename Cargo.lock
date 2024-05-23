@@ -359,6 +359,7 @@ version = "0.1.0"
 dependencies = [
  "fnv",
  "hexdump",
+ "regex",
  "smallvec",
  "strict-yaml-rust",
  "tacp",
