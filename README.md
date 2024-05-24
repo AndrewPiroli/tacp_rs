@@ -1,8 +1,8 @@
 This is a toy, do not use !!!!
 
-tacp/ - protocol definitions, encoders, and decoders. no_std, requires alloc
+tacp/ - protocol definitions, encoders, and decoders. no_std, requires alloc. Permissive License (MIT/Apache)
 
-tacpd/ - reference server implementation
+tacpd/ - reference server implementation. Copyleft license (GPL)
 
 TODO:
 
