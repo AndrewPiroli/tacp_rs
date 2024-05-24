@@ -27,6 +27,7 @@ TODO:
     - [ ] Multi-threading
     - [ ] Multi-processing / sharding
   - [ ] Security
+    - [ ] Secret storage
     - [ ] Fuzzing (how?)
     - [ ] Unsafe usage
   - [ ] Policy
