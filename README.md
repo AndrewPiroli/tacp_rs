@@ -37,24 +37,24 @@ TODO:
     - [ ] Accounting
     - [x] Groups
   - [ ] Features
-   - [ ] Authentication
-     - [x] Basic Protocol stuff
-       - [x] Define users manually in policy file
-       - [x] ASCII
-       - [x] PAP
-       - [x] CHAP
-     - [ ] LDAP Proxing
-     - [ ] RADIUS Proxing
-     - [ ] Other external sources?
-     - [ ] Builtin 2 factor (TOTP?, HTOP?)
-  - [ ] Authorization
-    - [x] ACL type stuff in Policy
-    - [ ] What else?
-  - [ ] Accounting
-    - [ ] Syslog
-    - [ ] File logging
-    - [ ] Graylog (?)
-    - [ ] Other ideas (?)
+     - [ ] Authentication
+       - [x] Basic Protocol stuff
+         - [x] Define users manually in policy file
+         - [x] ASCII
+         - [x] PAP
+         - [x] CHAP
+       - [ ] LDAP Proxying
+       - [ ] RADIUS Proxying
+       - [ ] Other external sources?
+       - [ ] Builtin 2 factor (TOTP?, HTOP?)
+    - [ ] Authorization
+      - [x] ACL type stuff in Policy
+      - [ ] What else?
+    - [ ] Accounting
+      - [ ] Syslog
+      - [ ] File logging
+      - [ ] Graylog (?)
+      - [ ] Other ideas (?)
   - [ ] Misc random ideas
     - [ ] Some kind of embedded scripting language to do cool stuff ??
     - [ ] Web UI ?
