@@ -26,6 +26,36 @@ impl From<&str> for Value {
     }
 }
 
+impl Value {
+    pub fn as_str(&self) -> Option<&str> {
+        if let Self::Str(s) = self {
+            Some(s.as_str())
+        }
+        else { None }
+    }
+    pub fn as_num(&self) -> Option<f64> {
+        if let Self::Numeric(n) = self {
+            Some(*n)
+        }
+        else { None }
+    }
+    pub fn as_bool(&self) -> Option<bool> {
+        if let Self::Boolean(b) = self {
+            Some(*b)
+        }
+        else { None }
+    }
+    pub fn as_ipaddr(&self) -> Option<IpAddr> {
+        if let Self::IPAddr(ip) = self {
+            Some(*ip)
+        }
+        else { None }
+    }
+    pub fn is_empty(&self) -> bool {
+        self == &Value::Empty
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ArgValPair {
     pub argument: String,

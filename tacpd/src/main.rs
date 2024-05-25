@@ -3,7 +3,6 @@
 #![deny(clippy::await_holding_lock)]
 use std::sync::Mutex;
 use policy::Policy;
-use tacp::argvalpair::Value;
 use tacp::*;
 use tacp::obfuscation::obfuscate_in_place;
 use tokio::net::{TcpListener, TcpStream};
@@ -517,18 +516,12 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         dbg!((pkt.len, expected_length));
         return SrvPacket::AuthorGenericError(Some(Vec::from(b"Packet length mismatch")));
     }
-    //fixme fixme fixme
-    let mut cmd: Option<String> = None;
-    for avp in pkt.args.iter() {
-        if &avp.argument == "cmd" {
-            match &avp.value {
-                Value::Str(x) => {
-                    cmd = Some(x.clone());
-                }
-                _ => { break; }
-            }
+    let cmd = pkt.args.iter().find_map(|x|{
+        if x.argument == "cmd" {
+            x.value.as_str()
         }
-    }
+        else { None }
+    });
     if cmd.is_none() {
         return SrvPacket::AuthorReply(AuthorReplyPacket {
             status: AuthorStatus::FAIL, // fixme; use reply
@@ -538,7 +531,6 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         });
     }
     let cmd = cmd.unwrap();
-    // fixme
     let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &cmd);
     let ret = if res {
         AuthorReplyPacket {
