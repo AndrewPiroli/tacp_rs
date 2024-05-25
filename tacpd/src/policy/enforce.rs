@@ -36,7 +36,7 @@ pub(crate) fn authorize(policy: &Policy, client: IpAddr, user: &str, cmd: &str) 
                         }
                     }
                 },
-                None => todo!(),
+                None => {},
             }
         },
         None => {},
