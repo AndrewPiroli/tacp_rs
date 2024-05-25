@@ -17,4 +17,7 @@ groups:
       default allow
       deny configure.*
   testing2:
-    authen_policy
+    author_policy: |
+      default deny
+      allow show.*
+      allow testing
