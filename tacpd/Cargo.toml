@@ -7,7 +7,7 @@ license = "GPL-2.0-only OR GPL-3.0-only"
 
 [dependencies]
 tacp = { path = "../tacp" }
-tokio = { version = "~1.33.0", default-features = false, features = ["net", "rt", "io-util"] }
+tokio = { version = "~1.33.0", default-features = false, features = ["net", "rt", "io-util", "fs"] }
 hexdump = "0.1.1"
 smallvec = { version = "~1.11.2", default-features = false, features = ["write", "union"] }
 fnv = { version = "~1.0.7", default-features = false, features = ["std"] }

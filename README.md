@@ -53,7 +53,7 @@ TODO:
       - [ ] What else?
     - [ ] Accounting
       - [ ] Syslog
-      - [ ] File logging
+      - [x] File logging
       - [ ] Graylog (?)
       - [ ] Other ideas (?)
   - [ ] Misc random ideas

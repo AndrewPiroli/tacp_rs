@@ -1,6 +1,6 @@
 use fnv::FnvHashMap;
 use crate::SString;
-use std::net::IpAddr;
+use std::{net::IpAddr, path::PathBuf};
 use regex::Regex;
 
 pub(crate) mod enforce;
@@ -23,6 +23,7 @@ pub(crate) struct UserPolicy {
 #[derive(Debug, Clone)]
 pub(crate) struct GroupsPolicy {
     pub author_policy: Option<AuthorPolicy>,
+    pub acct_policy: Option<AcctPolicy>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -65,3 +66,11 @@ pub struct AuthorPolicy {
     default_action: AuthorActions,
     list: Vec<(AuthorActions, Regex)>,
 }
+
+#[derive(Debug, Clone)]
+enum AcctTarget {
+    File(PathBuf),
+}
+
+#[derive(Debug, Clone)]
+pub struct AcctPolicy(AcctTarget);

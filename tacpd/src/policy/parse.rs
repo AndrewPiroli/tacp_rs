@@ -112,15 +112,19 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
         if group_settings.as_hash().is_none() {continue;}
         let group_settings = group_settings.as_hash().unwrap();
         let mut author_policy: Option<AuthorPolicy> = None;
+        let mut acct_policy: Option<AcctPolicy> = None;
         for (setting, val) in group_settings {
             match setting.as_str().unwrap() {
                 "author_policy" => {
                     author_policy = Some(parse_author_policy(val.as_str().unwrap()));
                 },
+                "acct_policy" => {
+                    acct_policy = Some(parse_acct_policy(val));
+                }
                 _ => error!("Unsupported group setting \"{val:?}\""),
             }
         }
-        policy.groups.insert(groupname.to_owned(), GroupsPolicy { author_policy });
+        policy.groups.insert(groupname.to_owned(), GroupsPolicy { author_policy, acct_policy });
     }
 }
 
@@ -145,4 +149,17 @@ fn parse_author_policy(policy: &str) -> AuthorPolicy {
         }
     }
     ret
+}
+
+fn parse_acct_policy(policy: &StrictYaml) -> AcctPolicy {
+    let policy = policy.as_hash().unwrap();
+    for (target, value) in policy {
+        if let Some(setting) = target.as_str() {
+            if setting == "file" {
+                return AcctPolicy(AcctTarget::File(value.as_str().unwrap().into()));
+            }
+        }
+        else {todo!()}
+    }
+    todo!();
 }

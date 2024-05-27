@@ -194,7 +194,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         let reply = match parsed_header.ty {
             PacketType::AUTHEN => handle_authen_packet(parsed_header.length as usize, packet, &mut cstate),
             PacketType::AUTHOR => handle_author_packet(parsed_header.length as usize, packet, &mut cstate),
-            PacketType::ACCT   => handle_acct_packet(parsed_header.length as usize, packet, &mut cstate),
+            PacketType::ACCT   => handle_acct_packet(parsed_header.length as usize, packet, &mut cstate).await,
         };
         let mut terminate_session = false;
         match reply {
@@ -552,7 +552,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
 }
 
 #[instrument]
-fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _cstate: &mut Client) -> SrvPacket {
+async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     let pkt = AcctRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
         return SrvPacket::AcctGenericError(Some(Vec::from(b"Failed to parse")));
@@ -562,11 +562,22 @@ fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, _csta
         dbg!((pkt.len, expected_length));
         return SrvPacket::AcctGenericError(Some(Vec::from(b"Length mismatch")));
     }
-    // for now we just tell them we were able to log everthing
-    let ret = AcctReplyPacket {
-        status: AcctStatus::SUCCESS,
-        server_msg: Vec::from(b"Ok (FIXME)"),
-        data: Vec::with_capacity(0),
+    // fixme, log string better
+    let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &format!("{pkt:?}")).await;
+    let ret = if x.is_ok() {
+        AcctReplyPacket {
+            status: AcctStatus::SUCCESS,
+            server_msg: Vec::from(b"Ok"),
+            data: Vec::with_capacity(0),
+        }
+    }
+    else {
+        error!("{:?}", x.unwrap_err());
+        AcctReplyPacket {
+            status: AcctStatus::ERROR,
+            server_msg: Vec::from(b"Failed"),
+            data: Vec::with_capacity(0)
+        }
     };
     return SrvPacket::AcctReply(ret);
 }

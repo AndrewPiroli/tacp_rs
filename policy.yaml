@@ -16,6 +16,8 @@ groups:
     author_policy: |
       default allow
       deny configure.*
+    acct_policy:
+      file: .\acct.log
   testing2:
     author_policy: |
       default deny
