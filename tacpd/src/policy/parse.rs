@@ -158,6 +158,38 @@ fn parse_acct_policy(policy: &StrictYaml) -> AcctPolicy {
             if setting == "file" {
                 return AcctPolicy(AcctTarget::File(value.as_str().unwrap().into()));
             }
+            if setting == "syslog" {
+                let mut ip = None;
+                let mut port = None;
+                let mut proto = None;
+                let syslog_settings = value.as_hash().unwrap();
+                for (syslog_setting, syslog_val) in syslog_settings {
+                    if let Some(syslog_setting) = syslog_setting.as_str() {
+                        let syslog_val = syslog_val.as_str().unwrap();
+                        match syslog_setting {
+                            "port" => {
+                                port = Some(syslog_val.parse::<u16>().unwrap());
+                            },
+                            "ip" | "host" => {
+                                ip = Some(syslog_val.parse::<IpAddr>().unwrap());
+                            },
+                            "proto" | "protocol" => {
+                                proto = Some(SyslogTransport::try_from(syslog_val).unwrap());
+                            },
+                            _ => {
+                                todo!()
+                            }
+                        }
+                    }
+                    else {
+                        todo!()
+                    }
+                }
+                if ip.is_none() {
+                    todo!();
+                }
+                return AcctPolicy(AcctTarget::Syslog((ip.unwrap(), port.unwrap_or(514), proto.unwrap_or(SyslogTransport::UDP))));
+            }
         }
         else {todo!()}
     }

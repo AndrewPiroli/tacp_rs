@@ -105,6 +105,37 @@ pub(crate) async fn account(policy: &Policy, client: IpAddr, user: &str, to_acct
                 let mut f = tokio::fs::File::open(fp).await?;
                 f.write_all(to_acct.as_bytes()).await?;
             },
+            AcctTarget::Syslog((ip, port, transport)) => {
+                use syslog_fmt::{
+                    v5424::{self, Timestamp},
+                    Severity,
+                };
+                use tokio::net::{TcpStream, UdpSocket};
+                let mut buf = Vec::<u8>::new();
+                let hostname = client.to_string();
+                let fmt = v5424::Config {
+                    app_name: Some("tacpd"),
+                    hostname: Some(&hostname),
+                    ..Default::default()
+                }.into_formatter();
+                fmt.write_without_data(&mut buf, Severity::Info, Timestamp::CreateChronoLocal, to_acct.as_bytes(), None)?;
+                match transport {
+                    SyslogTransport::TCP => {
+                        let mut s = TcpStream::connect((*ip, *port)).await?;
+                        s.write_all(&buf).await?;
+                    },
+                    SyslogTransport::UDP => {
+                        // We should be able to use :: for both v4 and v6, but in practice it depends on 
+                        // socket options (at least on Linux). Distros use varying settings so we have to check
+                        let bindaddr = match ip.is_ipv4() {
+                            true => "0.0.0.0:0",
+                            false => "::",
+                        };
+                        let s = UdpSocket::bind(bindaddr).await?;
+                        s.send_to(&buf, (*ip, *port)).await?;
+                    }
+                }
+            },
         }
     }
     Ok(true)

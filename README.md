@@ -52,7 +52,7 @@ TODO:
       - [x] ACL type stuff in Policy
       - [ ] What else?
     - [ ] Accounting
-      - [ ] Syslog
+      - [x] Syslog (basic rfc5424 support)
       - [x] File logging
       - [ ] Graylog (?)
       - [ ] Other ideas (?)

@@ -67,9 +67,32 @@ pub struct AuthorPolicy {
     list: Vec<(AuthorActions, Regex)>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SyslogTransport {
+    TCP,
+    UDP,
+}
+
+impl TryFrom<&str> for SyslogTransport {
+    type Error= ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.eq_ignore_ascii_case("tcp") {
+            return Ok(Self::TCP);
+        }
+        else if value.eq_ignore_ascii_case("udp") {
+            return Ok(Self::UDP);
+        }
+        else {
+            todo!();
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 enum AcctTarget {
     File(PathBuf),
+    Syslog((IpAddr, u16, SyslogTransport)),
 }
 
 #[derive(Debug, Clone)]
