@@ -1,5 +1,5 @@
 #![feature(let_chains)]
-#![allow(clippy::needless_return, clippy::upper_case_acronyms)]
+#![allow(clippy::needless_return, clippy::upper_case_acronyms, clippy::single_match)]
 #![deny(clippy::await_holding_lock)]
 use std::net::IpAddr;
 use std::sync::Mutex;
@@ -527,7 +527,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         });
     }
     let cmd = cmd.unwrap();
-    let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &cmd);
+    let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), cmd);
     let ret = if res {
         AuthorReplyPacket {
             status: AuthorStatus::PASS_ADD,
