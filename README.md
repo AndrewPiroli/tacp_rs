@@ -34,7 +34,7 @@ TODO:
     - [x] Clients
     - [x] Users
     - [x] Authorization
-    - [ ] Authentication
+    - [X] Authentication
     - [X] Accounting
     - [x] Groups
   - [ ] Features

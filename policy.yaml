@@ -21,6 +21,11 @@ groups:
         port: 514
         ip: 127.0.0.1
         protocol: tcp
+    authen_policy:
+      type: local
+      list: |
+        default deny
+        permit test
   testing2:
     author_policy: |
       default deny

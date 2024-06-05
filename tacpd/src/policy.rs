@@ -24,6 +24,7 @@ pub(crate) struct UserPolicy {
 pub(crate) struct GroupsPolicy {
     pub author_policy: Option<AuthorPolicy>,
     pub acct_policy: Option<AcctPolicy>,
+    pub authen_policy: Option<AuthenPolicy>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -39,13 +40,13 @@ pub(crate) struct Policy {
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AuthorActions {
+pub(crate) enum ACLActions {
     Default,
     Defer,
     Deny,
     Allow,
 }
-impl TryFrom<&str> for AuthorActions {
+impl TryFrom<&str> for ACLActions {
     type Error = ();
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -63,8 +64,8 @@ impl TryFrom<&str> for AuthorActions {
 
 #[derive(Debug, Clone)]
 pub struct AuthorPolicy {
-    default_action: AuthorActions,
-    list: Vec<(AuthorActions, Regex)>,
+    default_action: ACLActions,
+    list: Vec<(ACLActions, Regex)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,3 +98,12 @@ enum AcctTarget {
 
 #[derive(Debug, Clone)]
 pub struct AcctPolicy(AcctTarget);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AuthenType {
+    Local((ACLActions, Vec<(ACLActions, String)>)),
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthenPolicy(AuthenType);

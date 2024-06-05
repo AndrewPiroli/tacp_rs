@@ -1,6 +1,7 @@
 #![feature(let_chains)]
 #![allow(clippy::needless_return, clippy::upper_case_acronyms)]
 #![deny(clippy::await_holding_lock)]
+use std::net::IpAddr;
 use std::sync::Mutex;
 use policy::Policy;
 use tacp::*;
@@ -359,7 +360,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             }
             match pkt.authen_type {
                 AuthenType::ASCII => return authen_start_ascii(&pkt, cstate),
-                AuthenType::PAP => return authen_start_pap(&pkt),
+                AuthenType::PAP => return authen_start_pap(&pkt, cstate),
                 AuthenType::CHAP |
                 AuthenType::MSCHAP_V1 |
                 AuthenType::MSCHAP_V2 => return SrvPacket::AuthenGenericError(None),
@@ -401,7 +402,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                 SString(String::from_utf8_lossy(&pkt.user_msg).into())
             );
             let ret: AuthenReplyPacket =
-                if check_auth(&cstate.authen_info) {
+                if check_auth(&cstate.authen_info, cstate.addr.ip()) {
                     AuthenReplyPacket {
                         status: AuthenReplyStatus::PASS,
                         flags: 0,
@@ -431,19 +432,14 @@ fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::R
     Ok(pkt)
 }
 
-fn check_auth(info: &AuthenInfo) -> bool {
+fn check_auth(info: &AuthenInfo, client: IpAddr) -> bool {
     if info.username.is_none() || info.pass.is_none() {
         return false;
     }
     let user: &String = info.username.as_ref().unwrap();
     let pass: &SString = info.pass.as_ref().unwrap();
     let policy = POLICY.get().unwrap();
-    if let Some(user_pol) = policy.users.get(user)
-        && user_pol.password.is_some()
-    {
-        return user_pol.password.as_ref().unwrap().0 == pass.0;
-    }
-    return false;
+    policy::enforce::authenticate(policy, client, user, pass)
 }
 
 fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket {
@@ -471,7 +467,7 @@ fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket
     return SrvPacket::AuthenGenericError(None);
 }
 
-fn authen_start_pap(pkt: &AuthenStartPacket) -> SrvPacket {
+fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
     if pkt.user.is_empty() {
         let ret = AuthenReplyPacket {
             status: AuthenReplyStatus::ERROR,
@@ -486,7 +482,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket) -> SrvPacket {
         pass: Some(SString(String::from_utf8_lossy(&pkt.data).into())),
     };
     let ret =
-        if check_auth(&info) {
+        if check_auth(&info, cstate.addr.ip()) {
             AuthenReplyPacket {
                 status: AuthenReplyStatus::PASS,
                 flags: 0,

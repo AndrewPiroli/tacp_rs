@@ -113,6 +113,7 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
         let group_settings = group_settings.as_hash().unwrap();
         let mut author_policy: Option<AuthorPolicy> = None;
         let mut acct_policy: Option<AcctPolicy> = None;
+        let mut authen_policy: Option<AuthenPolicy> = None;
         for (setting, val) in group_settings {
             match setting.as_str().unwrap() {
                 "author_policy" => {
@@ -121,24 +122,27 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
                 "acct_policy" => {
                     acct_policy = Some(parse_acct_policy(val));
                 }
+                "authen_policy" => {
+                    authen_policy = Some(parse_authen_policy(val));
+                }
                 _ => error!("Unsupported group setting \"{val:?}\""),
             }
         }
-        policy.groups.insert(groupname.to_owned(), GroupsPolicy { author_policy, acct_policy });
+        policy.groups.insert(groupname.to_owned(), GroupsPolicy { author_policy, acct_policy, authen_policy });
     }
 }
 
 fn parse_author_policy(policy: &str) -> AuthorPolicy {
-    let mut ret = AuthorPolicy { default_action: AuthorActions::Deny, list: Vec::new() };
+    let mut ret = AuthorPolicy { default_action: ACLActions::Deny, list: Vec::new() };
     for line in policy.lines() {
         match line.split_once(' ') {
             Some((action, val)) => {
                 let action = action.trim();
                 let val = val.trim();
-                let action = AuthorActions::try_from(action).unwrap();
-                if action == AuthorActions::Default {
-                        let default_action = AuthorActions::try_from(val).unwrap_or(AuthorActions::Deny);
-                        assert_ne!(default_action, AuthorActions::Default);
+                let action = ACLActions::try_from(action).unwrap();
+                if action == ACLActions::Default {
+                        let default_action = ACLActions::try_from(val).unwrap_or(ACLActions::Deny);
+                        assert_ne!(default_action, ACLActions::Default);
                         ret.default_action = default_action;
                         continue;
                 }
@@ -194,4 +198,51 @@ fn parse_acct_policy(policy: &StrictYaml) -> AcctPolicy {
         else {todo!()}
     }
     todo!();
+}
+
+fn parse_authen_policy(policy: &StrictYaml) -> AuthenPolicy {
+    let policy = policy.as_hash().unwrap();
+    let mut ty = None;
+    let mut list = None;
+    for (setting, val) in policy {
+        let setting = setting.as_str().unwrap();
+        match setting {
+            "type" => {
+                ty = Some(val.as_str().unwrap());
+            },
+            "list" => {
+                list = Some(val.as_str().unwrap());
+            },
+            _ => {todo!();}
+        }
+    }
+    if ty.is_some() && list.is_some() {
+        let ty = ty.unwrap();
+        let list = list.unwrap();
+        if ty.eq_ignore_ascii_case("local") {
+            let mut default_action = ACLActions::Deny;
+            let mut acl = Vec::new();
+            for line in list.lines() {
+                match line.split_once(' ') {
+                    Some((action, user)) => {
+                        let action = ACLActions::try_from(action).unwrap();
+                        if action == ACLActions::Default {
+                            default_action = ACLActions::try_from(user).unwrap_or(ACLActions::Deny);
+                            assert_ne!(default_action, ACLActions::Default);
+                            continue;
+                        }
+                        acl.push((action, user.trim().to_owned()));
+                    },
+                    None => todo!(),
+                }
+            }
+            return AuthenPolicy(AuthenType::Local((default_action, acl)));
+        }
+        else {
+            todo!()
+        }
+    }
+    else {
+        todo!()
+    }
 }
