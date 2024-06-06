@@ -198,20 +198,47 @@ pub(crate) fn authenticate(policy: &Policy, client: IpAddr, user: &str, pass: &S
         match pol {
             AuthenType::Local((default, acl)) => {
                 last_default = *default;
-                for (action, user) in acl.iter() {
-                    if user.eq_ignore_ascii_case(user) {
-                        match action {
-                            ACLActions::Default => unreachable!(),
-                            ACLActions::Defer => { continue },
-                            ACLActions::Deny => { return false; },
-                            ACLActions::Allow => {
-                                return check_pw(policy, user, pass);
-                            },
-                        }
+                for (action, target) in acl.iter() {
+                    match target {
+                        AuthenTarget::Group(g) => {
+                            if check_group_membership(policy, user, g) {
+                                match action {
+                                    ACLActions::Default => unreachable!(),
+                                    ACLActions::Defer => { continue },
+                                    ACLActions::Deny => { return false; },
+                                    ACLActions::Allow => {
+                                        return check_pw(policy, user, pass);
+                                    },
+                                }
+                            }
+                        },
+                        AuthenTarget::User(u) => {
+                            if user.eq_ignore_ascii_case(u) {
+                                match action {
+                                    ACLActions::Default => unreachable!(),
+                                    ACLActions::Defer => { continue },
+                                    ACLActions::Deny => { return false; },
+                                    ACLActions::Allow => {
+                                        return check_pw(policy, user, pass);
+                                    },
+                                }
+                            }
+                        },
+
                     }
+
                 }
             },
         }
     }
     return last_default == ACLActions::Allow;
+}
+
+fn check_group_membership(policy: &Policy, user: &str, group: &str) -> bool {
+    if let Some(user) = policy.users.get(user) {
+        if let Some(user_groups) = &user.groups {
+            return user_groups.iter().any(|user_group|user_group.eq_ignore_ascii_case(group));
+        }
+    }
+    false
 }

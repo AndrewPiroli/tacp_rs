@@ -25,7 +25,8 @@ groups:
       type: local
       list: |
         default deny
-        permit test
+        permit user test
+        permit group testing2
   testing2:
     author_policy: |
       default deny

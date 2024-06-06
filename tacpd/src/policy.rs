@@ -102,8 +102,34 @@ pub struct AcctPolicy(AcctTarget);
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AuthenType {
-    Local((ACLActions, Vec<(ACLActions, String)>)),
+    Local((ACLActions, Vec<(ACLActions, AuthenTarget)>)),
 }
 
 #[derive(Debug, Clone)]
 pub struct AuthenPolicy(AuthenType);
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthenTarget {
+    User(String),
+    Group(String)
+}
+
+impl TryFrom<&str> for AuthenTarget {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if let Some((u_or_g, target)) = value.split_once(' ') {
+            if u_or_g.eq_ignore_ascii_case("group") {
+                return Ok(AuthenTarget::Group(target.to_owned()))
+            }
+            else if u_or_g.eq_ignore_ascii_case("user") {
+                return Ok(AuthenTarget::User(target.to_owned()))
+            }
+            else {
+                return Err(());
+            }
+        }
+        todo!()
+    }
+}

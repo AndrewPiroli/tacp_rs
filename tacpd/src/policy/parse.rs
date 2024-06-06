@@ -224,14 +224,16 @@ fn parse_authen_policy(policy: &StrictYaml) -> AuthenPolicy {
             let mut acl = Vec::new();
             for line in list.lines() {
                 match line.split_once(' ') {
-                    Some((action, user)) => {
+                    Some((action, target)) => {
                         let action = ACLActions::try_from(action).unwrap();
                         if action == ACLActions::Default {
-                            default_action = ACLActions::try_from(user).unwrap_or(ACLActions::Deny);
+                            default_action = ACLActions::try_from(target).unwrap_or(ACLActions::Deny);
                             assert_ne!(default_action, ACLActions::Default);
                             continue;
                         }
-                        acl.push((action, user.trim().to_owned()));
+                        if let Ok(target) = AuthenTarget::try_from(target) {
+                            acl.push((action, target));
+                        }
                     },
                     None => todo!(),
                 }
