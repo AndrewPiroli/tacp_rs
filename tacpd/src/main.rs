@@ -330,12 +330,14 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 break;
             }
         }
+        // Allow other tasks to run
         tokio::task::yield_now().await;
-    }
+    } /* Loop */
 }
 
 #[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
+    assert!(header.seq_no % 2 == 0); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
     let mut reply = header.encode();
     reply.extend_from_slice(obfuscated_body);
     stream.write_all(&reply).await?;
