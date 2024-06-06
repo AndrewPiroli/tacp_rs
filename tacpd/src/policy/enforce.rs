@@ -7,8 +7,11 @@ use super::*;
 
 pub(crate) fn authorize(policy: &Policy, client: IpAddr, user: &str, cmd: &str) -> bool {
     fn run_list(policies: &[&AuthorPolicy], cmd: &str) -> bool {
+        let mut default_action = ACLActions::Deny;
         for policy in policies {
-            let default = policy.default_action;
+            if let Some(default) = policy.default_action {
+                default_action = default;
+            }
             for (action, ck) in policy.list.iter() {
                 if ck.is_match(cmd) {
                     match action {
@@ -18,15 +21,9 @@ pub(crate) fn authorize(policy: &Policy, client: IpAddr, user: &str, cmd: &str) 
                         ACLActions::Allow => { return true; },
                     }
                 }
-                match default {
-                    ACLActions::Default => unreachable!(),
-                    ACLActions::Defer => { continue; }
-                    ACLActions::Deny => { return false; },
-                    ACLActions::Allow => { return true; },
-                }
             }
         }
-        false // no matches, no default allow, no one to defer to, DENY
+        default_action == ACLActions::Allow
     }
 
     let mut policy_list = Vec::new();

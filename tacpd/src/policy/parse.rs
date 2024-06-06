@@ -133,7 +133,7 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
 }
 
 fn parse_author_policy(policy: &str) -> AuthorPolicy {
-    let mut ret = AuthorPolicy { default_action: ACLActions::Deny, list: Vec::new() };
+    let mut ret = AuthorPolicy { default_action: None, list: Vec::new() };
     for line in policy.lines() {
         match line.split_once(' ') {
             Some((action, val)) => {
@@ -143,7 +143,7 @@ fn parse_author_policy(policy: &str) -> AuthorPolicy {
                 if action == ACLActions::Default {
                         let default_action = ACLActions::try_from(val).unwrap_or(ACLActions::Deny);
                         assert_ne!(default_action, ACLActions::Default);
-                        ret.default_action = default_action;
+                        ret.default_action = Some(default_action);
                         continue;
                 }
                 let re = Regex::new(val).unwrap();

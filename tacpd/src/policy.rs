@@ -64,7 +64,7 @@ impl TryFrom<&str> for ACLActions {
 
 #[derive(Debug, Clone)]
 pub struct AuthorPolicy {
-    default_action: ACLActions,
+    default_action: Option<ACLActions>,
     list: Vec<(ACLActions, Regex)>,
 }
 
