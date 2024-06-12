@@ -1,6 +1,11 @@
+#![allow(stable_features)]
+#![feature(error_in_core)]
 #![no_std]
 extern crate alloc;
-use alloc::string::String;
+use core::fmt::Pointer;
+
+use alloc::borrow::ToOwned;
+use alloc::string::{String, ToString};
 use alloc::{format, vec};
 use alloc::vec::Vec;
 use argvalpair::ArgValPair;
@@ -44,7 +49,7 @@ pub enum PacketType {
     ACCT = 0x3,
 }
 impl TryFrom<u8> for PacketType {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         let value = u8::from_be(value);
@@ -52,7 +57,7 @@ impl TryFrom<u8> for PacketType {
             1 => Ok(PacketType::AUTHEN),
             2 => Ok(PacketType::AUTHOR),
             3 => Ok(PacketType::ACCT),
-            _ => Err("value out of range"),
+            _ => Err(TacpErr::ParseError(format!("PacketType out of range. Expected 1-3. Got {value}"))),
         }
     }
 }
@@ -106,11 +111,13 @@ pub struct PacketHeader {
     pub length: PacketLength,
 }
 impl TryFrom<&[u8;12]> for PacketHeader {
-    type Error = String;
+    type Error = TacpErr;
     fn try_from(value: &[u8;12]) -> Result<Self, Self::Error> {
         let ver = u8::from_be(value[0]);
-        if ver != (MAJOR_VER << 4 | MINOR_VER_DEFAULT) && ver != (MAJOR_VER << 4 | MINOR_VER_ONE) {
-            return Err(format!("version fail {:x}", ver));
+        const TACP_VER_DEFAULT: u8 = MAJOR_VER << 4 | MINOR_VER_DEFAULT;
+        const TACP_VER_ONE: u8 = MAJOR_VER << 4 | MINOR_VER_ONE;
+        if ver != TACP_VER_DEFAULT && ver != TACP_VER_ONE {
+            return Err(TacpErr::ParseError(format!("TACACS+ Version Number not recognized. Expected: {TACP_VER_DEFAULT:x} or {TACP_VER_ONE:x}. Got: {ver:x}")));
         }
         let mut temp32 = [0u8;4];
         temp32.copy_from_slice(&value[4..8]);
@@ -176,14 +183,14 @@ pub enum AuthenStartAction {
 }
 
 impl TryFrom<u8> for AuthenStartAction {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0x1 => Ok(AuthenStartAction::LOGIN),
             0x2 => Ok(AuthenStartAction::CHPASS),
             0x4 => Ok(AuthenStartAction::SENDAUTH),
-            _ => Err("Out of range")
+            _ => Err(TacpErr::ParseError(format!("AuthenStartAction Out of range. Expected 1, 2, 4. Got {value}"))),
         }
     }
 }
@@ -199,7 +206,7 @@ pub enum AuthenType {
     MSCHAP_V2 = 0x6,
 }
 impl TryFrom<u8> for AuthenType {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -208,7 +215,7 @@ impl TryFrom<u8> for AuthenType {
             0x3 => Ok(AuthenType::CHAP),
             0x5 => Ok(AuthenType::MSCHAP_V1),
             0x6 => Ok(AuthenType::MSCHAP_V2),
-            _   => Err("Out of range"),
+            _   => Err(TacpErr::ParseError(format!("AuthenType Out of Range. Expected: 1-6. Got {value}"))),
         }
     }
 }
@@ -229,7 +236,7 @@ pub enum AuthenService {
     FWPROXY = 0x9,
 }
 impl TryFrom<u8> for AuthenService {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
@@ -242,7 +249,7 @@ impl TryFrom<u8> for AuthenService {
             0x7 => Ok(AuthenService::X25),
             0x8 => Ok(AuthenService::NASI),
             0x9 => Ok(AuthenService::FWPROXY),
-            _   => Err("Out of range"),
+            _   => Err(TacpErr::ParseError(format!("AuthenService Out of Range. Expected: 0-9. Got {value}"))),
         }
     }
 }
@@ -263,18 +270,19 @@ pub struct AuthenStartPacket {
 }
 
 impl TryFrom<&[u8]> for AuthenStartPacket {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.len() < 7 {
-            return Err("Packet is impossibly short");
+            return Err(TacpErr::ParseError("AuthenStartPacket is impossibly short (len < 7)".to_owned()));
         }
         let user_len = value[4] as usize;
         let port_len = value[5] as usize;
         let rem_addr_len = value[6] as usize;
         let data_len = value[7] as usize;
-        if value.len() < 8 + user_len + port_len + rem_addr_len + data_len {
-            return  Err("Packet length does not match parsed lengths from header. Key mismatch likey");
+        let total_expected_len = 8 + user_len + port_len + rem_addr_len + data_len;
+        if value.len() < total_expected_len {
+            return  Err(TacpErr::ParseError(format!("Packet length does not match parsed lengths from header. Key mismatch likey. Expected {total_expected_len}. Got {}", value.len())));
         }
         let user_range = 8..8+user_len;
         let port_range = user_range.end..(user_range.end + port_len);
@@ -290,7 +298,7 @@ impl TryFrom<&[u8]> for AuthenStartPacket {
                 port: Vec::from(&value[port_range]),
                 rem_addr: Vec::from(&value[rem_addr_range]),
                 data: Vec::from(&value[data_range]),
-                len: 8+user_len+port_len+rem_addr_len+data_len
+                len: total_expected_len
             }
         )
     }
@@ -373,19 +381,20 @@ pub struct AuthenContinuePacket {
     pub data: Vec<u8>
 }
 impl TryFrom<&[u8]> for AuthenContinuePacket {
-    type Error = String;
+    type Error = TacpErr;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let user_msg_len = (value[0] as usize) << 8 | value[1] as usize;
         let data_len = (value[2] as usize) << 8 | value[3] as usize;
+        let total_expected_len = 5+user_msg_len+data_len;
         let flags = value[4];
         let abort = flags & 0x1 == 1;
         let mut user_msg = vec!(0; user_msg_len);
         user_msg.copy_from_slice(&value[5..(5+user_msg_len)]);
         let mut data = vec!(0; data_len);
-        data.copy_from_slice(&value[(5+user_msg_len)..(5+user_msg_len+data_len)]);
-        if value.len() != 5+user_msg_len+data_len {
-            return Err(format!("AuthenContinuePacket length fields does not match packet length: {:x} vs {:x}", value.len(), 5+user_msg_len+data_len));
+        data.copy_from_slice(&value[(5+user_msg_len)..(total_expected_len)]);
+        if value.len() != total_expected_len {
+            return Err(TacpErr::ParseError(format!("AuthenContinuePacket length fields does not match packet length: Expected {:x} Got {:x}", total_expected_len, value.len())));
         }
         Ok(
             Self {
@@ -459,7 +468,7 @@ pub enum AuthorMethod {
 }
 
 impl TryFrom<u8> for AuthorMethod {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Ok(match value {
@@ -474,7 +483,7 @@ impl TryFrom<u8> for AuthorMethod {
             0x10 => AuthorMethod::RADIUS,
             0x11 => AuthorMethod::KRB4,
             0x20 => AuthorMethod::RCMD,
-            _ => { return Err("Value out of range") }
+            _ => { return Err(TacpErr::ParseError(format!("AuthorMethod out of range. Expected: 0x0-0x8, 0x10, 0x11, 0x20. Got {value}"))) }
         })
     }
 }
@@ -493,14 +502,13 @@ pub struct AuthorRequestPacket {
 }
 
 impl TryFrom<&[u8]> for AuthorRequestPacket {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     #[allow(clippy::needless_range_loop)] // false positive
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        fn bounds_check(pkt_size: usize, ptr: usize, file: &'static str, line: u32) -> Result<usize, &'static str> {
+        fn bounds_check(pkt_size: usize, ptr: usize, pkt_component: &'static str) -> Result<usize, TacpErr> {
             if ptr > pkt_size {
-                debug!("oob at {file}:{line}");
-                Err("out of bounds")
+                Err(TacpErr::ParseError(format!("AuthorRequestPacket OOB read parsing: {pkt_component}")))
             }
             else {
                 Ok(ptr)
@@ -508,7 +516,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
         }
         let pkt_size = value.len();
         if pkt_size < 8 {
-            return Err("Packet is impossibly small");
+            return Err(TacpErr::ParseError("AuthorRequestPacket is impossibly small (len < 8)".to_owned()));
         }
         let method = AuthorMethod::try_from(value[0])?;
         let priv_level = value[1];
@@ -519,25 +527,25 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
         let rem_addr_len = value[6] as usize;
         let arg_cnt = value[7] as usize;
         if pkt_size < 8+arg_cnt {
-            return Err("packet too small for arguments");
+            return Err(TacpErr::ParseError(format!("AuthorRequestPacket too small for arguments (len ({pkt_size}) < arg_count ({arg_cnt}) + 8)")));
         }
         let mut args = Vec::with_capacity(arg_cnt);
         let mut arg_lens = Vec::with_capacity(arg_cnt);
         let mut ptr = 8;
         while ptr < 8 + arg_cnt {
-            arg_lens.push(value[bounds_check(pkt_size, ptr, file!(), line!())?] as usize);
+            arg_lens.push(value[bounds_check(pkt_size, ptr, "arg length")?] as usize);
             ptr += 1;
         }
-        ptr = bounds_check(pkt_size, ptr+user_len, file!(), line!())?;
+        ptr = bounds_check(pkt_size, ptr+user_len, "user")?;
         let user = Vec::from(&value[(ptr-user_len)..ptr]);
-        ptr = bounds_check(pkt_size, ptr+port_len, file!(), line!())?;
+        ptr = bounds_check(pkt_size, ptr+port_len, "port")?;
         let port = Vec::from(&value[(ptr-user_len)..ptr]);
-        ptr = bounds_check(pkt_size, ptr+rem_addr_len, file!(), line!())?;
+        ptr = bounds_check(pkt_size, ptr+rem_addr_len, "rem addr")?;
         let rem_addr = Vec::from(&value[(ptr-rem_addr_len)..ptr]);
 
         for arg_counter in 0..arg_lens.len() {
             let this_arg_len = arg_lens[arg_counter];
-            ptr = bounds_check(pkt_size, ptr+this_arg_len, file!(), line!())?;
+            ptr = bounds_check(pkt_size, ptr+this_arg_len, "argument")?;
             let mut temp = vec!(0; this_arg_len);
             temp.copy_from_slice(&value[(ptr-this_arg_len)..ptr]);
             args.push(ArgValPair::try_from(String::from_utf8_lossy(&temp).into_owned())?);
@@ -671,7 +679,7 @@ pub enum AcctFlags {
     WatchdogUpdate,
 }
 impl TryFrom<u8> for AcctFlags {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value & 0xE {
@@ -679,17 +687,17 @@ impl TryFrom<u8> for AcctFlags {
             0x4 => Ok(Self::RecordStop),
             0x8 => Ok(Self::WatchdogNoUpdate),
             0xA => Ok(Self::WatchdogUpdate),
-            _ => Err("Invalid flags"),
+            _ => Err(TacpErr::ParseError(format!("AcctFlags out of range. Expected: 0x2, 0x4, 0x8, 0xA. Got {value}"))),
         }
     }
 }
 
 impl TryFrom<&[u8]> for AcctRequestPacket {
-    type Error = &'static str;
+    type Error = TacpErr;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.len() < 9 {
-            return Err("Packet is impossibly small");
+            return Err(TacpErr::ParseError("Packet is impossibly small (len < 9)".to_owned()));
         }
         let flags = AcctFlags::try_from(value[0])?;
         Ok(
@@ -755,4 +763,22 @@ impl AcctReplyPacket {
 pub enum AcctStatus {
     SUCCESS = 0x1,
     ERROR = 0x2,
+}
+
+#[derive(Debug, Clone)]
+pub enum TacpErr {
+    ParseError(String),
+    HeaderMismatch(String),
+}
+impl core::fmt::Display for TacpErr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        (self as &dyn core::fmt::Debug).fmt(f)
+    }
+}
+impl core::error::Error for TacpErr {}
+
+impl From<TacpErr> for Vec<u8> {
+    fn from(value: TacpErr) -> Self {
+        value.to_string().as_bytes().to_owned()
+    }
 }

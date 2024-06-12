@@ -64,7 +64,7 @@ pub struct ArgValPair {
 }
 
 impl TryFrom<String> for ArgValPair {
-    type Error = &'static str;
+    type Error = super::TacpErr;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if let Some(seplen) = value.find('=') {
@@ -100,7 +100,7 @@ impl TryFrom<String> for ArgValPair {
                 }
             )
         }
-        Err("No valid separator ('=' or '*') found!")
+        Err(super::TacpErr::ParseError("No valid separator ('=' or '*') found!".to_owned()))
     }
 }
 impl ArgValPair {

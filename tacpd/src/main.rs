@@ -429,7 +429,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
 fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<AuthenContinuePacket, <AuthenContinuePacket as TryFrom<&[u8]>>::Error> {
     let pkt = AuthenContinuePacket::try_from(data)?;
     if pkt.len() != expected_length {
-        return Err("Failed length check".to_owned());
+        return Err(TacpErr::HeaderMismatch(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
     }
     Ok(pkt)
 }
