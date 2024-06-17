@@ -1,4 +1,5 @@
 use fnv::FnvHashMap;
+use tacp::TacpErr;
 use crate::SString;
 use std::{net::IpAddr, path::PathBuf};
 use regex::Regex;
@@ -47,7 +48,7 @@ pub(crate) enum ACLActions {
     Allow,
 }
 impl TryFrom<&str> for ACLActions {
-    type Error = ();
+    type Error = TacpErr;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.to_lowercase();
@@ -56,7 +57,7 @@ impl TryFrom<&str> for ACLActions {
             "defer" => Self::Defer,
             "deny" => Self::Deny,
             "permit" | "allow" => Self::Allow,
-            _ => { return Err(()); }
+            _ => { return Err(TacpErr::ParseError(format!("ACLAction should be one of default, defer, deny, permit, allow. Got: {value}"))); }
         })
     }
 }
@@ -75,7 +76,7 @@ enum SyslogTransport {
 }
 
 impl TryFrom<&str> for SyslogTransport {
-    type Error= ();
+    type Error = TacpErr;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if value.eq_ignore_ascii_case("tcp") {
@@ -85,7 +86,7 @@ impl TryFrom<&str> for SyslogTransport {
             return Ok(Self::UDP);
         }
         else {
-            todo!();
+            return Err(TacpErr::ParseError(format!("SyslogTransport must be tcp or udp. Got: {value}")))
         }
     }
 }
@@ -116,7 +117,7 @@ pub enum AuthenTarget {
 }
 
 impl TryFrom<&str> for AuthenTarget {
-    type Error = ();
+    type Error = TacpErr;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((u_or_g, target)) = value.split_once(' ') {
@@ -127,7 +128,7 @@ impl TryFrom<&str> for AuthenTarget {
                 return Ok(AuthenTarget::User(target.to_owned()))
             }
             else {
-                return Err(());
+                return Err(TacpErr::ParseError(format!("AuthenTarget must start with group or user. Got {u_or_g}")));
             }
         }
         todo!()

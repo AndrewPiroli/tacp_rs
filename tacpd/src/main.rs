@@ -152,6 +152,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             Ok(_) => { /* read exact */}
             Err(e) => {
                 error!(err = ?e, "Error reading packet header from stream.");
+                break;
             }
         }
         let parsed_header = PacketHeader::try_from(&header).unwrap();
