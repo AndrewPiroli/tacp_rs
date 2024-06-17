@@ -1,4 +1,5 @@
-#![feature(let_chains)]
+#![feature(error_in_core, let_chains)]
+#![allow(stable_features)]
 #![allow(clippy::needless_return, clippy::upper_case_acronyms, clippy::single_match)]
 #![deny(clippy::await_holding_lock)]
 use std::net::IpAddr;
