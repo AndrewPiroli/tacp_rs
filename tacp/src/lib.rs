@@ -2,14 +2,12 @@
 #![feature(error_in_core)]
 #![no_std]
 extern crate alloc;
-use core::fmt::Pointer;
 
 use alloc::borrow::ToOwned;
 use alloc::string::{String, ToString};
 use alloc::{format, vec};
 use alloc::vec::Vec;
 use argvalpair::ArgValPair;
-use tracing::debug;
 
 pub mod obfuscation;
 pub mod argvalpair;
