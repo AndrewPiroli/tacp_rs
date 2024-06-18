@@ -167,7 +167,13 @@ fn parse_author_policy(policy: &StrictYaml, groupname: &str) -> AuthorPolicy {
                 Some((action, val)) => {
                     let action = action.trim();
                     let val = val.trim();
-                    let action = ACLActions::try_from(action).unwrap();
+                    let action = match ACLActions::try_from(action) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            error!("Error parsing author policy for group {groupname}: {e}");
+                            return AuthorPolicy {default_action: Some(ACLActions::Deny), list: Vec::with_capacity(0) };
+                        }
+                    };
                     if action == ACLActions::Default {
                             let default_action = ACLActions::try_from(val).unwrap_or(ACLActions::Deny);
                             match default_action {
@@ -180,8 +186,20 @@ fn parse_author_policy(policy: &StrictYaml, groupname: &str) -> AuthorPolicy {
                             }
                             continue;
                     }
-                    let re = Regex::new(val).unwrap();
-                    ret.list.push((action, re));
+                    let re = Regex::new(val);
+                    match re {
+                        Ok(re) => ret.list.push((action, re)),
+                        Err(re_err) => {
+                            use regex::Error;
+                            let err_msg = match re_err {
+                                Error::Syntax(explain) => format!("Syntax error: {explain}"),
+                                Error::CompiledTooBig(size) => format!("Exceeded reasonable size limit: {size}"),
+                                _ => "Unknown reason".to_owned(),
+                            };
+                            error!("AuthorPolicy for group: {groupname} regex error: {err_msg}",);
+                            return AuthorPolicy { default_action: Some(ACLActions::Deny), list: Vec::with_capacity(0) };
+                        }
+                    }
                 },
                 None => {
                     error!("AuthorPolicy Parse Error failed for Group {groupname}");
@@ -267,7 +285,13 @@ fn parse_authen_policy(policy: &StrictYaml, groupname: &str) -> AuthenPolicy {
             for line in list.lines() {
                 match line.split_once(' ') {
                     Some((action, target)) => {
-                        let action = ACLActions::try_from(action).unwrap();
+                        let action = match ACLActions::try_from(action) {
+                            Ok(a) => a,
+                            Err(e) => {
+                                error!("Error parsing authen policy for group {groupname}: {e}");
+                                return AuthenPolicy(AuthenType::Local((ACLActions::Deny, Vec::with_capacity(0))));
+                            }
+                        };
                         if action == ACLActions::Default {
                             let parsed_target = ACLActions::try_from(target).unwrap_or(ACLActions::Deny);
                             match parsed_target {
