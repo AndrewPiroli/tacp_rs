@@ -131,6 +131,6 @@ impl TryFrom<&str> for AuthenTarget {
                 return Err(TacpErr::ParseError(format!("AuthenTarget must start with group or user. Got {u_or_g}")));
             }
         }
-        todo!()
+        Err(TacpErr::ParseError("Malformed AuthenTarget. No separator.".to_owned()))
     }
 }

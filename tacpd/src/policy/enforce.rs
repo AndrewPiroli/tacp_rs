@@ -54,10 +54,10 @@ pub(crate) fn authorize(policy: &Policy, client: IpAddr, user: &str, cmd: &str) 
                         }
                     }
                 },
-                None => todo!(),
+                None => {},
             }
         },
-        None => todo!(),
+        None => { return false; },
     }
     run_list(&policy_list, cmd)
 }
@@ -90,10 +90,10 @@ pub(crate) async fn account(policy: &Policy, client: IpAddr, user: &str, to_acct
                         }
                     }
                 },
-                None => todo!(),
+                None => {},
             }
         },
-        None => todo!(),
+        None => { /* Should we allow this? Probably for accounting */},
     }
     let to_acct = format!("{to_acct:?}");
     for pol in policy_list.iter() {
@@ -165,10 +165,10 @@ pub(crate) fn authenticate(policy: &Policy, client: IpAddr, user: &str, pass: &S
                         }
                     }
                 },
-                None => todo!(),
+                None => {},
             }
         },
-        None => todo!(),
+        None => {/* Should we allow this? Probably not, but when non-local auth is allowed - probably yes */},
     }
 
     fn check_pw(policy: &Policy, user: &str, pass: &SString) -> bool {
