@@ -67,7 +67,7 @@ impl SString {
     fn zero(&mut self) {
         const _: () = assert!(std::mem::align_of::<u8>() == 1); // Is there an arch where this is false?
         let ptr = self.0.as_mut_ptr();
-        let len = self.0.len();
+        let len = self.0.capacity();
         for off in 0..len {
             unsafe { std::ptr::write_volatile(ptr.add(off), 0); }
         }
