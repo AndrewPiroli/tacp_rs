@@ -139,15 +139,17 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
                     if let Some(setting) = setting.as_str() {
                         match setting {
                             "author_policy" => {
-                                author_policy = Some(parse_author_policy(val));
+                                author_policy = Some(parse_author_policy(val, groupname));
                             },
                             "acct_policy" => {
-                                acct_policy = Some(parse_acct_policy(val).unwrap());
+                                if let Ok(parsed_pol) = parse_acct_policy(val, groupname) {
+                                    acct_policy = Some(parsed_pol);
+                                }
                             }
                             "authen_policy" => {
-                                authen_policy = Some(parse_authen_policy(val));
+                                authen_policy = Some(parse_authen_policy(val, groupname));
                             }
-                            _ => error!("Unsupported group setting \"{val:?}\""),
+                            _ => error!("Unsupported group setting \"{val:?}\" for group {groupname}"),
                         }
                     } else { error!("Failed to parse group setting for group \"{groupname}\""); }
                 }
@@ -157,7 +159,7 @@ fn parse_policy_groups_section(policy: &mut Policy, section: &StrictYaml) {
     } else { error!("failed to parse entire groups section"); }
 }
 
-fn parse_author_policy(policy: &StrictYaml) -> AuthorPolicy {
+fn parse_author_policy(policy: &StrictYaml, groupname: &str) -> AuthorPolicy {
     let mut ret = AuthorPolicy { default_action: None, list: Vec::new() };
     if let Some(policy) = policy.as_str() {
         for line in policy.lines() {
@@ -168,31 +170,40 @@ fn parse_author_policy(policy: &StrictYaml) -> AuthorPolicy {
                     let action = ACLActions::try_from(action).unwrap();
                     if action == ACLActions::Default {
                             let default_action = ACLActions::try_from(val).unwrap_or(ACLActions::Deny);
-                            assert_ne!(default_action, ACLActions::Default);
-                            ret.default_action = Some(default_action);
+                            match default_action {
+                                ACLActions::Default => {
+                                    error!("Error parsing author policy default action for group {groupname}");
+                                }
+                                ACLActions::Allow |
+                                ACLActions::Defer |
+                                ACLActions::Deny => ret.default_action = Some(default_action)
+                            }
                             continue;
                     }
                     let re = Regex::new(val).unwrap();
                     ret.list.push((action, re));
                 },
-                None => todo!(),
+                None => {
+                    error!("AuthorPolicy Parse Error failed for Group {groupname}");
+                    return AuthorPolicy { default_action: Some(ACLActions::Deny), list: Vec::with_capacity(0) };
+                },
             }
         }
     }
     if ret.list.is_empty() && ret.default_action.is_none() {
-        error!("Did not parse any author policies, defaulting to deny all");
+        error!("Did not parse any author policies for group {groupname}, defaulting to deny all");
         ret.default_action = Some(ACLActions::Deny);
     }
     ret
 }
 
-fn parse_acct_policy(policy: &StrictYaml) -> Result<AcctPolicy, TacpErr> {
+fn parse_acct_policy(policy: &StrictYaml, groupname: &str) -> Result<AcctPolicy, TacpErr> {
     if let Some(policy) = policy.as_hash() {
         for (target, value) in policy {
             if let Some(setting) = target.as_str() {
                 if setting.eq_ignore_ascii_case("file") {
                     if let Some(filename) = value.as_str() { return Ok(AcctPolicy(AcctTarget::File(filename.into()))); }
-                    else { return Err(TacpErr::ParseError("AcctPolicy specified file but filename malformed".to_owned())); }
+                    else { return Err(TacpErr::ParseError(format!("AcctPolicy for group {groupname} specified file but filename malformed"))); }
                 }
                 if setting.eq_ignore_ascii_case("syslog") {
                     let mut ip = None;
@@ -207,31 +218,31 @@ fn parse_acct_policy(policy: &StrictYaml) -> Result<AcctPolicy, TacpErr> {
                                     "port" => { port = syslog_val.parse::<u16>().ok(); },
                                     "ip" | "host" => { ip = syslog_val.parse::<IpAddr>().ok(); },
                                     "proto" | "protocol" => { proto = SyslogTransport::try_from(syslog_val).ok(); },
-                                    _ => { error!("Unknown syslog setting: {syslog_setting}"); }
+                                    _ => { error!("Unknown syslog setting: \"{syslog_setting}\" for groupname {groupname}"); }
                                 }
-                            } else { error!("Parse error in syslog settings."); }
+                            } else { error!("Parse error in syslog settings for group {groupname}."); }
                         }
-                    } else { error!("Failed to parse syslog settings"); } //will fall through to no IP case. which is fine.
+                    } else { error!("Failed to parse syslog settings for group {groupname}"); } //will fall through to no IP case. which is fine.
                     if let Some(ip) = ip {
                         return Ok(AcctPolicy(AcctTarget::Syslog((ip, port.unwrap_or(514), proto.unwrap_or(SyslogTransport::UDP)))));
                     }
                     else {
-                        error!("Policy syslog section: finished parsing syslog settings but no target IP was specified");
-                        return Err(TacpErr::ParseError("Policy syslog section: finished parsing syslog settings but no target IP was specified".to_owned()))
+                        error!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}");
+                        return Err(TacpErr::ParseError(format!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}")))
                     }
-                } else { error!("Unknown Acct Policy target: {setting}") }
+                } else { error!("Unknown Acct Policy target: \"{setting}\" for group {groupname}") }
             }
             else {
-                error!("AcctPolicy parse error, acct target is not a string");
-                return Err(TacpErr::ParseError("AcctPolicy parse error, acct target is not a string".to_owned()))
+                error!("AcctPolicy parse error(group {groupname}), acct target is not a string");
+                return Err(TacpErr::ParseError(format!("AcctPolicy parse error, acct target is not a string for group {groupname}")));
             }
         }
-    } else { error!("Failed to parse entrire AcctPolicy section"); }
-    error!("Reached end of AcctPolicy parsing with nothing to show for myself.");
-    Err(TacpErr::ParseError("Reached end of AcctPolicy parsing with nothing to show for myself.".to_owned()))
+    } else { error!("Failed to parse entrire AcctPolicy section for group {groupname}"); }
+    error!("Reached end of AcctPolicy parsing for group {groupname} with nothing to show for myself.");
+    Err(TacpErr::ParseError(format!("Reached end of AcctPolicy parsing for group {groupname} with nothing to show for myself.")))
 }
 
-fn parse_authen_policy(policy: &StrictYaml) -> AuthenPolicy {
+fn parse_authen_policy(policy: &StrictYaml, groupname: &str) -> AuthenPolicy {
     let mut ty = None;
     let mut list = None;
     if let Some(policy) = policy.as_hash() {
@@ -243,7 +254,7 @@ fn parse_authen_policy(policy: &StrictYaml) -> AuthenPolicy {
                 else if setting.eq_ignore_ascii_case("list") {
                     list = val.as_str();
                 }
-                else { error!("Unknown setting \"{setting}\" while parsing authen policy"); }
+                else { error!("Unknown setting \"{setting}\" while parsing authen policy for group {groupname}"); }
             }
         }
     }
@@ -258,22 +269,34 @@ fn parse_authen_policy(policy: &StrictYaml) -> AuthenPolicy {
                     Some((action, target)) => {
                         let action = ACLActions::try_from(action).unwrap();
                         if action == ACLActions::Default {
-                            default_action = ACLActions::try_from(target).unwrap_or(ACLActions::Deny);
-                            assert_ne!(default_action, ACLActions::Default);
+                            let parsed_target = ACLActions::try_from(target).unwrap_or(ACLActions::Deny);
+                            match parsed_target {
+                                ACLActions::Default => {
+                                    error!("Error parsing authen policy default action for group {groupname}");
+                                }
+                                ACLActions::Allow |
+                                ACLActions::Defer |
+                                ACLActions::Deny => {
+                                    default_action = parsed_target;
+                                }
+                            }
                             continue;
                         }
                         if let Ok(target) = AuthenTarget::try_from(target) {
                             acl.push((action, target));
                         }
                     },
-                    None => todo!(),
+                    None => {
+                        error!("AuthenPolicy Failed to parse line for group {groupname}");
+                        return AuthenPolicy(AuthenType::Local((ACLActions::Deny, Vec::with_capacity(0))));
+                    },
                 }
             }
             return AuthenPolicy(AuthenType::Local((default_action, acl)));
         }
         else {
-            error!("Unkown AuthenType \"{ty}\"");
+            error!("Unkown AuthenType \"{ty}\" for group {groupname}");
         }
-    } else { error!("Failed to parse both a authen type and list from the authen policy"); }
+    } else { error!("Failed to parse both a authen type and list from the authen policy for group {groupname}"); }
     AuthenPolicy(AuthenType::Local((ACLActions::Deny, Vec::with_capacity(0))))
 }
