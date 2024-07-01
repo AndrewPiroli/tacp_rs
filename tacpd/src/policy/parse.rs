@@ -56,6 +56,22 @@ fn parse_policy_global_section(policy: &mut Policy, section: &StrictYaml) {
                     "block-unconfigured" => {
                         policy.allow_unconfigured = val.eq_ignore_ascii_case("false");
                     }
+                    "bind-addr" => {
+                        if let Ok(ip) = IpAddr::from_str(val) {
+                            policy.bind_info.0 = ip;
+                        }
+                        else {
+                            error!("Failed to parse bind addr: {val}");
+                        }
+                    },
+                    "bind-port" => {
+                        if let Ok(port) = u16::from_str(val) {
+                            policy.bind_info.1 = port;
+                        }
+                        else {
+                            error!("Failed to parse bind port: {val}");
+                        }
+                    },
                     _ => {
                         error!("unknown setting \"{setting}\" in global section");
                     }

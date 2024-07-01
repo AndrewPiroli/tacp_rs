@@ -1,6 +1,8 @@
 global:
   default-key: a
   block-unconfigured: false
+  bind-addr: 0.0.0.0
+  bind-port: 9999
 clients:
   127.0.0.1:
     key: b

@@ -2,7 +2,7 @@
 #![allow(stable_features)]
 #![allow(clippy::needless_return, clippy::upper_case_acronyms, clippy::single_match)]
 #![deny(clippy::await_holding_lock)]
-use std::net::IpAddr;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::Mutex;
 use policy::Policy;
 use tacp::*;
@@ -121,7 +121,8 @@ fn main() {
     }
     let rt = tokio::runtime::Builder::new_current_thread().enable_io().build().unwrap();
     rt.block_on(async {
-        let s = TcpListener::bind("0.0.0.0:9999").await.unwrap();
+        let bind_info = POLICY.get().unwrap().bind_info.to_socket_addrs().unwrap().next().unwrap();
+        let s = TcpListener::bind(bind_info).await.unwrap();
         loop {
             let (stream, addr) = s.accept().await.unwrap();
             tokio::task::spawn(handle_conn(stream, addr));

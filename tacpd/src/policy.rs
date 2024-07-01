@@ -1,7 +1,7 @@
 use fnv::FnvHashMap;
 use tacp::TacpErr;
 use crate::SString;
-use std::{net::IpAddr, path::PathBuf};
+use std::{net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs}, path::PathBuf, str::FromStr};
 use regex::Regex;
 
 pub(crate) mod enforce;
@@ -28,9 +28,32 @@ pub(crate) struct GroupsPolicy {
     pub authen_policy: Option<AuthenPolicy>,
 }
 
+#[derive(Debug, Clone)]
+/// The address and port the server will listen to on startup
+/// Defaults to any v4 address and TCP port 49
+pub(crate) struct BindInfo(pub IpAddr, pub u16);
+impl Default for BindInfo {
+    fn default() -> Self {
+        Self(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 49)
+    }
+}
+impl ToSocketAddrs for BindInfo {
+    type Iter= std::option::IntoIter<SocketAddr>;
+
+    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
+        let (ip, port) = (self.0, self.1);
+        match ip {
+            IpAddr::V4(ref a) => (*a, port).to_socket_addrs(),
+            IpAddr::V6(ref a) => (*a, port).to_socket_addrs(),
+        }
+    }
+}
+
+
 #[derive(Debug, Clone, Default)]
 /// Describes the entire administrative policy of the server
 pub(crate) struct Policy {
+    pub bind_info: BindInfo,
     pub default_key: Option<SString>,
     pub clients: FnvHashMap<IpAddr, ClientPolicy>,
     pub users: FnvHashMap<String, UserPolicy>,
