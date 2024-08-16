@@ -442,12 +442,12 @@ impl AuthenContinuePacket {
 /// LOCAL is a client local user database. ENABLE is a command that authenticates in order to grant new privileges.
 /// TACACSPLUS is, of course, TACACS+. GUEST is an unqualified guest authentication.
 /// RADIUS is the RADIUS authentication protocol. RCMD refers to authentication provided via the R-command protocols from Berkeley Unix.
-/// KRB5 [RFC4120] and KRB4 [KRB4] are Kerberos versions 5 and 4.
+/// KRB5 \[RFC4120\] and KRB4 \[KRB4\] are Kerberos versions 5 and 4.
 /// As mentioned above, this field is used by the client to indicate how it performed the authentication.
 /// One of the options (TAC_PLUS_AUTHEN_METH_TACACSPLUS := 0x06) is TACACS+ itself, and so the detail of how the client performed this option is given in "Authentication" (Section 5).
 /// For all other options, such as KRB and RADIUS, the TACACS+ protocol did not play any part in the authentication phase;
 /// as those interactions were not conducted using the TACACS+ protocol, they will not be documented here.
-/// For implementers of clients who need details of the other protocols, please refer to the respective Kerberos [RFC4120] and RADIUS [RFC3579] RFCs.
+/// For implementers of clients who need details of the other protocols, please refer to the respective Kerberos \[RFC4120\] and RADIUS \[RFC3579\] RFCs.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
