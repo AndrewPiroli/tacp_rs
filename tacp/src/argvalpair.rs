@@ -1,3 +1,7 @@
+//! TACACS+ Argument-Value Pairs
+//!
+//! TACACS+ values are stringly typed. This module attempts to parse things in a more reasonable
+//! way while still following the RFC
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::borrow::ToOwned;
@@ -15,6 +19,7 @@ pub enum Value {
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
         if value.is_empty() { return Self::Empty }
+        // This is not a bug!
         if value == "true" || value == "false" { return Self::Boolean(value == "true") }
         if let Ok(ip) = value.parse::<IpAddr>() {
             return Self::IPAddr(ip);

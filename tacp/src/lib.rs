@@ -12,32 +12,24 @@ use argvalpair::ArgValPair;
 pub mod obfuscation;
 pub mod argvalpair;
 //https://datatracker.ietf.org/doc/html/rfc8907
-// All TACACS+ packets begin with the following 12-byte header.
-//  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-// +----------------+----------------+----------------+----------------+
-// |major  | minor  |                |                |                |
-// |version| version|      type      |     seq_no     |   flags        |
-// +----------------+----------------+----------------+----------------+
-// |                                                                   |
-// |                            session_id                             |
-// +----------------+----------------+----------------+----------------+
-// |                                                                   |
-// |                              length                               |
-// +----------------+----------------+----------------+----------------+
-//
 // The following general rules apply to all TACACS+ packet types:
 // * To signal that any variable-length data fields are unused, the corresponding length values are set to zero. Such fields MUST be ignored, and treated as if not present.
 // * The lengths of data and message fields in a packet are specified by their corresponding length field (and are not null terminated).
 // * All length values are unsigned and in network byte order.
 
+/// TACACS+ Header Version Field
 pub type Version = u8;
 
+/// Currently the only defined TACACS+ major version.
 pub const MAJOR_VER: u8 = 0xc;
+/// TACACS+ minor version 0 aka \"default\". Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
 pub const MINOR_VER_DEFAULT: u8 = 0x0;
+/// TACACS+ minor version 1. Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
 pub const MINOR_VER_ONE: u8 = 0x1;
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
+/// All TACACS+ packets are one of the following 3 types
 pub enum PacketType {
     /// Authentication
     AUTHEN = 0x1,
@@ -66,7 +58,7 @@ impl TryFrom<u8> for PacketType {
 /// TACACS+ clients only send packets containing odd sequence numbers,
 /// and TACACS+ servers only send packets containing even sequence numbers.
 ///
-///The sequence number must never wrap, i.e., if the sequence number 2^8 - 1 is ever reached, that session must terminate and be restarted with a sequence number of 1.
+/// The sequence number must never wrap, i.e., if the sequence number 2^8 - 1 is ever reached, that session must terminate and be restarted with a sequence number of 1.
 pub type SeqNo = u8;
 
 /// This field contains various bitmapped flags
@@ -98,6 +90,24 @@ pub type SessionID = u32;
 /// is 2^12
 pub type PacketLength = u32;
 
+/**
+All TACACS+ packets begin with the following 12-byte header.
+
+Encoding:
+```
+1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|major  | minor  |                |                |                |
+|version| version|      type      |     seq_no     |   flags        |
++----------------+----------------+----------------+----------------+
+|                                                                   |
+|                            session_id                             |
++----------------+----------------+----------------+----------------+
+|                                                                   |
+|                              length                               |
++----------------+----------------+----------------+----------------+
+```
+*/
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct PacketHeader {
@@ -155,22 +165,27 @@ impl PacketHeader {
     }
 }
 
-// Authentication START Packet Body
-// 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-// +----------------+----------------+----------------+----------------+
-// |    action      |    priv_lvl    |  authen_type   | authen_service |
-// +----------------+----------------+----------------+----------------+
-// |    user_len    |    port_len    |  rem_addr_len  |    data_len    |
-// +----------------+----------------+----------------+----------------+
-// |    user ...                                                       |
-// +----------------+----------------+----------------+----------------+
-// |    port ...                                                       |
-// +----------------+----------------+----------------+----------------+
-// |    rem_addr ...                                                   |
-// +----------------+----------------+----------------+----------------+
-// |    data...                                                        |
-// +----------------+----------------+----------------+----------------+
-//
+/**
+Authentication START Packet Body
+
+Encoding:
+```
+1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|    action      |    priv_lvl    |  authen_type   | authen_service |
++----------------+----------------+----------------+----------------+
+|    user_len    |    port_len    |  rem_addr_len  |    data_len    |
++----------------+----------------+----------------+----------------+
+|    user ...                                                       |
++----------------+----------------+----------------+----------------+
+|    port ...                                                       |
++----------------+----------------+----------------+----------------+
+|    rem_addr ...                                                   |
++----------------+----------------+----------------+----------------+
+|    data...                                                        |
++----------------+----------------+----------------+----------------+
+```
+*/
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -193,6 +208,7 @@ impl TryFrom<u8> for AuthenStartAction {
     }
 }
 
+/// Indicates what method of authentication is being requested/used.
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -217,8 +233,11 @@ impl TryFrom<u8> for AuthenType {
         }
     }
 }
+
+/// Authen Privilege Level Packet Field
 pub type PrivLevel = u8;
 
+/// Indicates the Service that authentication is being requested for.
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
@@ -252,8 +271,29 @@ impl TryFrom<u8> for AuthenService {
     }
 }
 
+/// Authentication Start Packet Variable Data Length Field
 pub type AuthenStartVariDataLen = u8;
+/**
+The Authentication START Packet Body
 
+Encoding:
+```
+1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|    action      |    priv_lvl    |  authen_type   | authen_service |
++----------------+----------------+----------------+----------------+
+|    user_len    |    port_len    |  rem_addr_len  |    data_len    |
++----------------+----------------+----------------+----------------+
+|    user ...
++----------------+----------------+----------------+----------------+
+|    port ...
++----------------+----------------+----------------+----------------+
+|    rem_addr ...
++----------------+----------------+----------------+----------------+
+|    data...
++----------------+----------------+----------------+----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AuthenStartPacket {
     pub action: AuthenStartAction,
@@ -303,15 +343,21 @@ impl TryFrom<&[u8]> for AuthenStartPacket {
 }
 
 
-// Authentication REPLY Packet Body
-/// 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |     status     |      flags     |        server_msg_len           |
-/// +----------------+----------------+----------------+----------------+
-/// |           data_len              |        server_msg ...
-/// +----------------+----------------+----------------+----------------+
-/// |           data ...
-/// +----------------+----------------+
+/**
+Authentication REPLY Packet Body
+
+Encoding:
+```
+1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|     status     |      flags     |        server_msg_len           |
++----------------+----------------+----------------+----------------+
+|           data_len              |        server_msg ...
++----------------+----------------+----------------+----------------+
+|           data ...
++----------------+----------------+
+```
+*/
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -326,11 +372,28 @@ pub enum AuthenReplyStatus {
     FOLLOW = 0x21,
 }
 
-/// flags
-/// Bitmapped flags that modify the action to be taken
-/// Only one flag is defined currently.
+/// Authentication REPLY Flag TAC_PLUS_REPLY_FLAG_NOECHO
+///
+/// If the information being requested by the server from the client is sensitive, then the server should set
+/// the this flag. When the client queries the user for the information, the response MUST NOT be reflected in
+/// the user interface as it is entered.
 pub const REPLY_FLAG_NOECHO: u8 = 1;
 
+/**
+The Authentication REPLY Packet Body
+
+Encoding:
+```
+ 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|     status     |      flags     |        server_msg_len           |
++----------------+----------------+----------------+----------------+
+|           data_len              |        server_msg ...
++----------------+----------------+----------------+----------------+
+|           data ...
++----------------+----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AuthenReplyPacket {
     pub status: AuthenReplyStatus,
@@ -360,18 +423,24 @@ impl AuthenReplyPacket {
     }
 }
 
-/// Authentication CONTINUE Packet Body
-/// This packet is sent from the client to the server following the receipt of a REPLY packet.
-///
-/// 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |          user_msg len           |            data_len             |
-/// +----------------+----------------+----------------+----------------+
-/// |     flags      |  user_msg ...
-/// +----------------+----------------+----------------+----------------+
-/// |    data ...
-/// +----------------+
+/**
+Authentication CONTINUE Packet Body
 
+This packet is sent from the client to the server following the receipt of a REPLY packet.
+
+Encoding:
+```
+
+1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|          user_msg len           |            data_len             |
++----------------+----------------+----------------+----------------+
+|     flags      |  user_msg ...
++----------------+----------------+----------------+----------------+
+|    data ...
++----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AuthenContinuePacket {
     pub abort: bool,
@@ -411,32 +480,9 @@ impl AuthenContinuePacket {
     }
 }
 
-/// The Authroization REQUEST Packet Body
-///   1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |  authen_method |    priv_lvl    |  authen_type   | authen_service |
-/// +----------------+----------------+----------------+----------------+
-/// |    user_len    |    port_len    |  rem_addr_len  |    arg_cnt     |
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_1_len    |   arg_2_len    |      ...       |   arg_N_len    |
-/// +----------------+----------------+----------------+----------------+
-/// |   user ...
-/// +----------------+----------------+----------------+----------------+
-/// |   port ...
-/// +----------------+----------------+----------------+----------------+
-/// |   rem_addr ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_1 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_2 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_N ...
-/// +----------------+----------------+----------------+----------------+
 
-
-/// This field allows the client to indicate the authentication method used to acquire user information.
+/// Indicates the authentication method used to acquire use information
+///
 /// As this information is not always subject to verification, it MUST NOT be used in policy evaluation.
 /// LINE refers to a fixed password associated with the terminal line used to gain access.
 /// LOCAL is a client local user database. ENABLE is a command that authenticates in order to grant new privileges.
@@ -486,6 +532,35 @@ impl TryFrom<u8> for AuthorMethod {
     }
 }
 
+/**
+The Authroization REQUEST Packet Body
+
+Encoding:
+```
+  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|  authen_method |    priv_lvl    |  authen_type   | authen_service |
++----------------+----------------+----------------+----------------+
+|    user_len    |    port_len    |  rem_addr_len  |    arg_cnt     |
++----------------+----------------+----------------+----------------+
+|   arg_1_len    |   arg_2_len    |      ...       |   arg_N_len    |
++----------------+----------------+----------------+----------------+
+|   user ...
++----------------+----------------+----------------+----------------+
+|   port ...
++----------------+----------------+----------------+----------------+
+|   rem_addr ...
++----------------+----------------+----------------+----------------+
+|   arg_1 ...
++----------------+----------------+----------------+----------------+
+|   arg_2 ...
++----------------+----------------+----------------+----------------+
+|   ...
++----------------+----------------+----------------+----------------+
+|   arg_N ...
++----------------+----------------+----------------+----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AuthorRequestPacket {
     pub method: AuthorMethod,
@@ -563,25 +638,31 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
     }
 }
 
-/// The Authorization REPLY Packet Body
-///  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |    status      |     arg_cnt    |         server_msg len          |
-/// +----------------+----------------+----------------+----------------+
-/// +            data_len             |    arg_1_len   |    arg_2_len   |
-/// +----------------+----------------+----------------+----------------+
-/// |      ...       |   arg_N_len    |         server_msg ...
-/// +----------------+----------------+----------------+----------------+
-/// |   data ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_1 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_2 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_N ...
-/// +----------------+----------------+----------------+----------------+
+/**
+The Authorization REPLY Packet Body
+
+Encoding:
+```
+ 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|    status      |     arg_cnt    |         server_msg len          |
++----------------+----------------+----------------+----------------+
++            data_len             |    arg_1_len   |    arg_2_len   |
++----------------+----------------+----------------+----------------+
+|      ...       |   arg_N_len    |         server_msg ...
++----------------+----------------+----------------+----------------+
+|   data ...
++----------------+----------------+----------------+----------------+
+|   arg_1 ...
++----------------+----------------+----------------+----------------+
+|   arg_2 ...
++----------------+----------------+----------------+----------------+
+|   ...
++----------------+----------------+----------------+----------------+
+|   arg_N ...
++----------------+----------------+----------------+----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AuthorReplyPacket {
     pub status: AuthorStatus,
@@ -618,44 +699,56 @@ impl AuthorReplyPacket {
     }
 }
 
+/// Status of the Authorization Request
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum AuthorStatus {
+    /// Authorized as-is
     PASS_ADD = 0x1,
+    /// Authroized, but the client must use the provided argument-value pairs instead of the
+    /// provided ones.
     PASS_REPL = 0x2,
+    /// Authorization Denied
     FAIL = 0x10,
+    /// Server error
     ERROR = 0x11,
+    /// Follow to other TACACS+ server (deprecated)
     FOLLOW = 0x21,
 }
 
-/// The Account REQUEST Packet Body
-///  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |      flags     |  authen_method |    priv_lvl    |  authen_type   |
-/// +----------------+----------------+----------------+----------------+
-/// | authen_service |    user_len    |    port_len    |  rem_addr_len  |
-/// +----------------+----------------+----------------+----------------+
-/// |    arg_cnt     |   arg_1_len    |   arg_2_len    |      ...       |
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_N_len    |    user ...
-/// +----------------+----------------+----------------+----------------+
-/// |   port ...
-/// +----------------+----------------+----------------+----------------+
-/// |   rem_addr ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_1 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_2 ...
-/// +----------------+----------------+----------------+----------------+
-/// |   ...
-/// +----------------+----------------+----------------+----------------+
-/// |   arg_N ...
-/// +----------------+----------------+----------------+----------------+
-/// 
-/// NOTE: This is basically the same as the Authorization START Packet body,
-///     We take advantage of this by parsing it as such, then adding the flags
-/// 
+/**
+The Account REQUEST Packet Body
+
+Encoding:
+```
+ 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|      flags     |  authen_method |    priv_lvl    |  authen_type   |
++----------------+----------------+----------------+----------------+
+| authen_service |    user_len    |    port_len    |  rem_addr_len  |
++----------------+----------------+----------------+----------------+
+|    arg_cnt     |   arg_1_len    |   arg_2_len    |      ...       |
++----------------+----------------+----------------+----------------+
+|   arg_N_len    |    user ...
++----------------+----------------+----------------+----------------+
+|   port ...
++----------------+----------------+----------------+----------------+
+|   rem_addr ...
++----------------+----------------+----------------+----------------+
+|   arg_1 ...
++----------------+----------------+----------------+----------------+
+|   arg_2 ...
++----------------+----------------+----------------+----------------+
+|   ...
++----------------+----------------+----------------+----------------+
+|   arg_N ...
++----------------+----------------+----------------+----------------+
+```
+ 
+NOTE: This is basically the same as the Authorization START Packet body,
+    We take advantage of this by parsing it as such, then adding the flags
+*/
 #[derive(Debug, Clone)]
 pub struct AcctRequestPacket {
     pub flags: AcctFlags,
@@ -669,6 +762,33 @@ pub struct AcctRequestPacket {
     pub args: Vec<ArgValPair>,
     pub len: usize,
 }
+
+/**
+Accounting Flags
+
+Parsed from the first byte of the Accounting REQUEST packet according to the following tables
+(RFC8907 Section 7.2)
+
+
+| Watchdog | Stop | Start | Flags & 0xE | Meaning                 |
+|----------|------|-------|-------------|-------------------------|
+| 0        | 0    | 0     | 0           | INVALID                 |
+| 0        | 0    | 1     | 2           | Start Accounting Record |
+| 0        | 1    | 0     | 4           | Stop Accounting Record  |
+| 0        | 1    | 1     | 6           | INVALID                 |
+| 1        | 0    | 0     | 8           | Watchdog, no update     |
+| 1        | 0    | 1     | A           | Watchdog, with update   |
+| 1        | 1    | 0     | C           | INVALID                 |
+| 1        | 1    | 1     | E           | INVALID                 |
+
+where:
+
+FLAG_START = 0x2
+
+FLAG_STOP = 0x4
+
+FLAG_WATCHDOG = 0x8
+*/
 #[derive(Debug, Clone, Copy)]
 pub enum AcctFlags {
     RecordStart,
@@ -719,16 +839,21 @@ impl From<(AcctFlags, AuthorRequestPacket)> for AcctRequestPacket {
         }
     }
 }
+/**
+The Accounting REPLY Packet Body
 
-/// The Accounting REPLY Packet Body
-///  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-/// +----------------+----------------+----------------+----------------+
-/// |         server_msg len          |            data_len             |
-/// +----------------+----------------+----------------+----------------+
-/// |     status     |         server_msg ...
-/// +----------------+----------------+----------------+----------------+
-/// |     data ...
-/// +----------------+
+Encoding:
+```
+ 1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
++----------------+----------------+----------------+----------------+
+|         server_msg len          |            data_len             |
++----------------+----------------+----------------+----------------+
+|     status     |         server_msg ...
++----------------+----------------+----------------+----------------+
+|     data ...
++----------------+
+```
+*/
 #[derive(Debug, Clone)]
 pub struct AcctReplyPacket {
     pub status: AcctStatus,
@@ -756,6 +881,7 @@ impl AcctReplyPacket {
     }
 }
 
+/// Accounting Status Field
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum AcctStatus {
@@ -763,9 +889,12 @@ pub enum AcctStatus {
     ERROR = 0x2,
 }
 
+/// Unified Error type for this crate
 #[derive(Debug, Clone)]
 pub enum TacpErr {
+    /// An error in parsing a packet or field with an explanation.
     ParseError(String),
+    /// A mismatch between a parameter from the header and packet body with an explanation.
     HeaderMismatch(String),
 }
 impl core::fmt::Display for TacpErr {
