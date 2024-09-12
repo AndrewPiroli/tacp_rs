@@ -4,7 +4,7 @@
 #![deny(clippy::await_holding_lock)]
 use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::Mutex;
-use policy::Policy;
+use policy::{ClientPolicy, Policy};
 use tacp::*;
 use tacp::obfuscation::obfuscate_in_place;
 use tokio::net::{TcpListener, TcpStream};
@@ -133,11 +133,18 @@ fn main() {
 #[instrument]
 async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
     let policy = POLICY.get().unwrap();
-    if !policy.clients.contains_key(&addr.ip()) && !policy.allow_unconfigured {
-        error!("Unconfigured client disallowed");
-        return;
-    }
-    let client_policy = policy.clients.get(&addr.ip()).cloned().unwrap_or_default();
+    let client_policy = match policy.clients.get(&addr.ip()) {
+        Some(client_pol) => {
+            client_pol.clone()
+        },
+        None if policy.allow_unconfigured => {
+            ClientPolicy::default()
+        }
+        None => {
+            error!("Unconfigured client disallowed");
+            return;
+        }
+    };
     let key = match (&client_policy.key, &policy.default_key) {
         (None, Some(dk)) => dk,
         (Some(ck), None) |
@@ -157,7 +164,13 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 break;
             }
         }
-        let parsed_header = PacketHeader::try_from(&header).unwrap();
+        let parsed_header = match PacketHeader::try_from(&header) {
+            Ok(ph) => ph,
+            Err(_e) => {
+                error!(err = ?_e, "Failed to parse packet header");
+                return;
+            }
+        };
         if parsed_header.seq_no % 2 == 0 {
             error!(seq_no = ?parsed_header.seq_no, "Clients MUST send odd sequence numbers.");
             break;
@@ -187,12 +200,9 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         debug!(?parsed_header);
         let mut packet: SmallVec<PacketBuf> = SmallVec::with_capacity(parsed_header.length as usize);
         packet.resize_with(parsed_header.length as usize, Default::default);
-        match stream.read_exact(&mut packet).await {
-            Ok(_) => {},
-            Err(e) => {
-                error!(err = ?e, "Error reading packet body from stream");
-                break;
-            }
+        if let Err(e) = stream.read_exact(&mut packet).await {
+            error!(err = ?e, "Error reading packet body from stream");
+            break;
         }
         obfuscate_in_place(parsed_header, key.as_bytes(), &mut packet);
         let reply = match parsed_header.ty {
@@ -233,7 +243,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 let pkt = AuthenReplyPacket {
                     status: AuthenReplyStatus::ERROR,
                     flags: 0,
-                    serv_msg: msg.unwrap_or(Vec::from(b"Unimplemented")),
+                    serv_msg: msg.unwrap_or("Unimplemented".into()),
                     data: Vec::with_capacity(0)
                 };
                 let header = PacketHeader {
@@ -267,7 +277,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 let pkt = AuthorReplyPacket {
                     status: AuthorStatus::ERROR,
                     args: Vec::with_capacity(0),
-                    server_msg: msg.unwrap_or(Vec::from(b"Generic error")),
+                    server_msg: msg.unwrap_or("Generic error".into()),
                     data: Vec::with_capacity(0),
                 };
                 let header = PacketHeader {
@@ -300,7 +310,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 terminate_session = true;
                 let pkt = AcctReplyPacket{
                     status: AcctStatus::ERROR,
-                    server_msg: msg.unwrap_or(Vec::from(b"Generic error")),
+                    server_msg: msg.unwrap_or("Generic error".into()),
                     data: Vec::with_capacity(0),
                 };
                 let header = PacketHeader {
@@ -361,14 +371,14 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             let pkt = pkt.unwrap();
             if pkt.len != expected_length { // probably key failure
                 error!(expected = ?expected_length, actual = ?pkt.len, "Packet len does not match expected. Probable key failure");
-                return SrvPacket::AuthenGenericError(Some(Vec::from(b"pkt len does not match header len")));
+                return SrvPacket::AuthenGenericError(Some("pkt len does not match header len".into()));
             }
             match pkt.authen_type {
                 AuthenType::ASCII => return authen_start_ascii(&pkt, cstate),
                 AuthenType::PAP => return authen_start_pap(&pkt, cstate),
                 AuthenType::CHAP |
                 AuthenType::MSCHAP_V1 |
-                AuthenType::MSCHAP_V2 => return SrvPacket::AuthenGenericError(None),
+                AuthenType::MSCHAP_V2 => return SrvPacket::AuthenGenericError(Some("This server does not implement CHAP".into())),
             }
         },
         AuthenState::ASCIIGETUSER => { // We've replied, so this is a AUTHEN CONTINUE packet
@@ -380,14 +390,14 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             }
             if pkt.user_msg.is_empty() {
                 error!("Server request username but none provided");
-                return SrvPacket::AuthenGenericError(Some(Vec::from(b"Server requested username but none provided"))); // We asked for a username
+                return SrvPacket::AuthenGenericError(Some("Server requested username but none provided".into())); // We asked for a username
             }
             cstate.authen_info.username = Some(String::from_utf8_lossy(&pkt.user_msg).into());
             debug!(username = ?cstate.authen_info.username, "Client provides username");
             let ret = AuthenReplyPacket {
                 status: AuthenReplyStatus::GETPASS,
                 flags: 1 << REPLY_FLAG_NOECHO,
-                serv_msg: Vec::from(b"Enter pass"),
+                serv_msg: "Enter pass".into(),
                 data: Vec::with_capacity(0),
             };
             cstate.authen_state = AuthenState::ASCIIGETPASS;
@@ -401,7 +411,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                 return SrvPacket::AuthenClientAbort(reason.into());
             }
             if pkt.user_msg.is_empty() {
-                return SrvPacket::AuthenGenericError(Some(Vec::from(b"Server requested a password but none provided"))); // We asked for a pass
+                return SrvPacket::AuthenGenericError(Some("Server requested a password but none provided".into())); // We asked for a pass
             }
             cstate.authen_info.pass = Some(
                 SString(String::from_utf8_lossy(&pkt.user_msg).into())
@@ -411,7 +421,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                     AuthenReplyPacket {
                         status: AuthenReplyStatus::PASS,
                         flags: 0,
-                        serv_msg: Vec::from(b"Authentication Pass"),
+                        serv_msg: "Authentication Pass".into(),
                         data: Vec::with_capacity(0),
                     }
                 }
@@ -419,7 +429,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                     AuthenReplyPacket {
                         status: AuthenReplyStatus::FAIL,
                         flags: 0,
-                        serv_msg: Vec::from(b"Authentication Fail"),
+                        serv_msg: "Authentication Fail".into(),
                         data: Vec::with_capacity(0),
                     }
                 };
@@ -452,7 +462,7 @@ fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket
         let ret = AuthenReplyPacket {
             status: AuthenReplyStatus::GETUSER,
             flags: 0,
-            serv_msg: Vec::from(b"Username required: "),
+            serv_msg: "Username required: ".into(),
             data: Vec::with_capacity(0),
         };
         cstate.authen_state = AuthenState::ASCIIGETUSER;
@@ -463,7 +473,7 @@ fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket
         let ret = AuthenReplyPacket {
             status: AuthenReplyStatus::GETPASS,
             flags: 1 << REPLY_FLAG_NOECHO,
-            serv_msg: Vec::from(b"Enter pass"),
+            serv_msg: "Enter pass".into(),
             data: Vec::with_capacity(0),
         };
         cstate.authen_state = AuthenState::ASCIIGETPASS;
@@ -477,7 +487,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
         let ret = AuthenReplyPacket {
             status: AuthenReplyStatus::ERROR,
             flags: 0,
-            serv_msg: Vec::from(b"Failed to supply username"),
+            serv_msg: "Failed to supply username".into(),
             data: Vec::with_capacity(0),
         };
         return SrvPacket::AuthenReply(ret);
@@ -491,7 +501,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
             AuthenReplyPacket {
                 status: AuthenReplyStatus::PASS,
                 flags: 0,
-                serv_msg: Vec::from(b"PAP Authentication PASS"),
+                serv_msg: "PAP Authentication PASS".into(),
                 data: Vec::with_capacity(0),
             }
         }
@@ -499,7 +509,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
             AuthenReplyPacket {
                 status: AuthenReplyStatus::FAIL,
                 flags: 0,
-                serv_msg: Vec::from(b"PAP Authentication FAIL"),
+                serv_msg: "PAP Authentication FAIL".into(),
                 data: Vec::with_capacity(0),
             }
         };
@@ -510,12 +520,12 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
 fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     let pkt = AuthorRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
-        return SrvPacket::AuthorGenericError(Some(Vec::from(b"Failed to parse")));
+        return SrvPacket::AuthorGenericError(Some("Failed to parse".into()));
     }
     let pkt = pkt.unwrap();
     if pkt.len != expected_length {
         dbg!((pkt.len, expected_length));
-        return SrvPacket::AuthorGenericError(Some(Vec::from(b"Packet length mismatch")));
+        return SrvPacket::AuthorGenericError(Some("Packet length mismatch".into()));
     }
     let cmd = pkt.args.iter().find_map(|x|{
         if x.argument == "cmd" {
@@ -537,7 +547,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         AuthorReplyPacket {
             status: AuthorStatus::PASS_ADD,
             args: Vec::with_capacity(0),
-            server_msg: Vec::from(b"Approved"),
+            server_msg: "Approved".into(),
             data: Vec::with_capacity(0),
         }
     }
@@ -545,7 +555,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         AuthorReplyPacket {
             status: AuthorStatus::FAIL,
             args: Vec::with_capacity(0),
-            server_msg: Vec::from(b"Denied"),
+            server_msg: "Denied".into(),
             data: Vec::with_capacity(0),
         }
     };
@@ -556,19 +566,19 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
 async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     let pkt = AcctRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
-        return SrvPacket::AcctGenericError(Some(Vec::from(b"Failed to parse")));
+        return SrvPacket::AcctGenericError(Some("Failed to parse".into()));
     }
     let pkt = pkt.unwrap();
     if pkt.len != expected_length {
         dbg!((pkt.len, expected_length));
-        return SrvPacket::AcctGenericError(Some(Vec::from(b"Length mismatch")));
+        return SrvPacket::AcctGenericError(Some("Length mismatch".into()));
     }
     // fixme, log string better
     let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &format!("{pkt:?}")).await;
     let ret = if x.is_ok() {
         AcctReplyPacket {
             status: AcctStatus::SUCCESS,
-            server_msg: Vec::from(b"Ok"),
+            server_msg: "Ok".into(),
             data: Vec::with_capacity(0),
         }
     }
@@ -576,7 +586,7 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
         error!("{:?}", x.unwrap_err());
         AcctReplyPacket {
             status: AcctStatus::ERROR,
-            server_msg: Vec::from(b"Failed"),
+            server_msg: "Failed".into(),
             data: Vec::with_capacity(0)
         }
     };
