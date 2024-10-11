@@ -121,22 +121,20 @@ pub struct PacketHeader {
 impl TryFrom<&[u8;12]> for PacketHeader {
     type Error = TacpErr;
     fn try_from(value: &[u8;12]) -> Result<Self, Self::Error> {
-        let ver = u8::from_be(value[0]);
+        let ver = value[0];
         const TACP_VER_DEFAULT: u8 = MAJOR_VER << 4 | MINOR_VER_DEFAULT;
         const TACP_VER_ONE: u8 = MAJOR_VER << 4 | MINOR_VER_ONE;
         if ver != TACP_VER_DEFAULT && ver != TACP_VER_ONE {
             return Err(TacpErr::ParseError(format!("TACACS+ Version Number not recognized. Expected: {TACP_VER_DEFAULT:x} or {TACP_VER_ONE:x}. Got: {ver:x}")));
         }
-        let mut temp32 = [0u8;4];
-        temp32.copy_from_slice(&value[4..8]);
-        let session_id = SessionID::from_be_bytes(temp32);
-        temp32.copy_from_slice(&value[8..12]);
-        let length = PacketLength::from_be_bytes(temp32);
+        // SAFETY: the slice is known to be large enough at compile time
+        let session_id = SessionID::from_be_bytes(unsafe {*(&value[4..8] as *const [u8] as *const [u8; 4])});
+        let length = PacketLength::from_be_bytes(unsafe {*(&value[8..12] as *const [u8] as *const [u8; 4])});
         Ok(Self {
             version: value[0],
             ty: PacketType::try_from(value[1])?,
-            seq_no: u8::from_be(value[2]),
-            flags: u8::from_be(value[3]),
+            seq_no: value[2],
+            flags: value[3],
             session_id,
             length,
         })
@@ -151,16 +149,8 @@ impl PacketHeader {
         res.push(self.ty as u8);
         res.push(self.seq_no);
         res.push(self.flags);
-        let mut swap = self.session_id;
-        res.push(((swap >> 24) & 0xff) as u8);
-        res.push(((swap >> 16) & 0xff) as u8);
-        res.push(((swap >> 08) & 0xff) as u8);
-        res.push(((swap >> 00) & 0xff) as u8);
-        swap = self.length;
-        res.push(((swap >> 24) & 0xff) as u8);
-        res.push(((swap >> 16) & 0xff) as u8);
-        res.push(((swap >> 08) & 0xff) as u8);
-        res.push(((swap >> 00) & 0xff) as u8);
+        res.extend(self.session_id.to_be_bytes());
+        res.extend(self.length.to_be_bytes());
         res
     }
 }
@@ -408,12 +398,8 @@ impl AuthenReplyPacket {
         let mut res = Vec::with_capacity(self.len());
         res.push(self.status as u8);
         res.push(self.flags);
-        let mut len = self.serv_msg.len() as u16;
-        res.push((len & 0xff) as u8);
-        res.push(((len >> 8) & 0xff) as u8);
-        len = self.data.len() as u16;
-        res.push((len & 0xff) as u8);
-        res.push(((len >> 8) & 0xff) as u8);
+        res.extend((self.serv_msg.len() as u16).to_be_bytes());
+        res.extend((self.data.len() as u16).to_be_bytes());
         res.extend(self.serv_msg.iter());
         res.extend(self.data.iter());
         res
@@ -451,18 +437,22 @@ impl TryFrom<&[u8]> for AuthenContinuePacket {
     type Error = TacpErr;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let user_msg_len = (value[0] as usize) << 8 | value[1] as usize;
-        let data_len = (value[2] as usize) << 8 | value[3] as usize;
+        if value.len() < 5 {
+            return Err(TacpErr::ParseError(format!("AuthenContinuePacket is impossibly small (len < 5): actual {}", value.len())));
+        }
+        // SAFETY: The length is checked.
+        let user_msg_len = u16::from_be_bytes(unsafe {*(&value[0..=1] as *const [u8] as *const [u8;2])}) as usize;
+        let data_len = u16::from_be_bytes(unsafe {*(&value[1..=2] as *const [u8] as *const [u8;2])}) as usize;
         let total_expected_len = 5+user_msg_len+data_len;
+        if value.len() < total_expected_len {
+            return Err(TacpErr::ParseError(format!("AuthenContinuePacket too small. Header size: {total_expected_len} Actual Size: {}", value.len())))
+        }
         let flags = value[4];
         let abort = flags & 0x1 == 1;
         let mut user_msg = vec!(0; user_msg_len);
         user_msg.copy_from_slice(&value[5..(5+user_msg_len)]);
         let mut data = vec!(0; data_len);
         data.copy_from_slice(&value[(5+user_msg_len)..(total_expected_len)]);
-        if value.len() != total_expected_len {
-            return Err(TacpErr::ParseError(format!("AuthenContinuePacket length fields does not match packet length: Expected {:x} Got {:x}", total_expected_len, value.len())));
-        }
         Ok(
             Self {
                 abort,
@@ -579,7 +569,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
 
     #[allow(clippy::needless_range_loop)] // false positive
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        fn bounds_check(pkt_size: usize, ptr: usize, pkt_component: &'static str) -> Result<usize, TacpErr> {
+        fn bounds_check(pkt_size: usize, ptr: usize, pkt_component: &str) -> Result<usize, TacpErr> {
             if ptr > pkt_size {
                 Err(TacpErr::ParseError(format!("AuthorRequestPacket OOB read parsing: {pkt_component}")))
             }
@@ -618,7 +608,7 @@ impl TryFrom<&[u8]> for AuthorRequestPacket {
 
         for arg_counter in 0..arg_lens.len() {
             let this_arg_len = arg_lens[arg_counter];
-            ptr = bounds_check(pkt_size, ptr+this_arg_len, "argument")?;
+            ptr = bounds_check(pkt_size, ptr+this_arg_len, &format!("argument#{arg_counter}"))?;
             let mut temp = vec!(0; this_arg_len);
             temp.copy_from_slice(&value[(ptr-this_arg_len)..ptr]);
             args.push(ArgValPair::try_from(String::from_utf8_lossy(&temp).into_owned())?);
@@ -679,11 +669,9 @@ impl AuthorReplyPacket {
         ret.push(self.status as u8);
         ret.push(self.args.len() as u8);
         let server_msg_len = self.server_msg.len() as u16;
-        ret.push(((server_msg_len >> 8 )& 0xff) as u8); // endian
-        ret.push((server_msg_len & 0xff) as u8);
+        ret.extend(server_msg_len.to_be_bytes());
         let data_len = self.data.len();
-        ret.push(((data_len >> 8 )& 0xff) as u8); // endian
-        ret.push((data_len & 0xff) as u8);
+        ret.extend(data_len.to_be_bytes());
         for arg in args.iter() {
             ret.push(arg.len() as u8);
         }
@@ -867,10 +855,8 @@ impl AcctReplyPacket {
         let server_msg_len = self.server_msg.len();
         let data_len = self.data.len();
         let mut ret = Vec::with_capacity(5 + server_msg_len + data_len);
-        ret.push(((server_msg_len >> 8) & 0xff) as u8);
-        ret.push((server_msg_len & 0xff) as u8);
-        ret.push(((data_len >> 8) & 0xff) as u8);
-        ret.push((data_len & 0xff) as u8);
+        ret.extend(server_msg_len.to_be_bytes());
+        ret.extend(data_len.to_be_bytes());
         ret.push(self.status as u8);
         ret.extend(self.server_msg.iter());
         ret.extend(self.data.iter());
