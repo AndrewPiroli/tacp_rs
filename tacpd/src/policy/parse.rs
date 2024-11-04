@@ -117,8 +117,8 @@ fn parse_policy_users_section(policy: &mut Policy, section: &StrictYaml) {
             if let Some(username) = username.as_str()
             && let Some(user_settings) = user_settings.as_hash()
             {
+                let mut user_policy = UserPolicy { password: None, groups: None };
                 for (setting, val) in user_settings {
-                    let mut user_policy = UserPolicy { password: None, groups: None };
                     if let Some(setting) = setting.as_str()
                     && let Some(val) = val.as_str()
                     {
@@ -133,9 +133,9 @@ fn parse_policy_users_section(policy: &mut Policy, section: &StrictYaml) {
                                 error!("Unknwon user policy setting \"{setting}\"");
                             }
                         }
-                        policy.users.insert(username.to_owned(), user_policy);
                     } else { error!("Failed to parse settings for user {username}"); }
                 }
+                policy.users.insert(username.to_owned(), user_policy);
             } else { error!("Failed to parse user settings"); }
         }
     } else { error!("Failed to parse entire users section"); }

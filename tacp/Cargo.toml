@@ -7,3 +7,8 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 md5 = { package = "md-5", version = "~0.10.6", default-features = false }
+zerocopy = { version = "~0.8.8", default-features = false }
+zerocopy-derive = { version = "~0.8.8", default-features = false }
+
+[features]
+dst-construct = []

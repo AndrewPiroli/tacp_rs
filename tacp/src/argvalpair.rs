@@ -7,6 +7,8 @@ use alloc::vec::Vec;
 use alloc::borrow::ToOwned;
 use core::net::IpAddr;
 
+use crate::TacpErr;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Numeric(f64),
@@ -126,5 +128,39 @@ impl ArgValPair {
             Value::Empty => {},
         }
         res
+    }
+}
+
+pub struct ArgValPairCopyIter<'a> {
+    current: u16,
+    data_idx: usize,
+    limit: &'a u8,
+    lengths: &'a [u8],
+    data: &'a [u8],
+}
+impl<'a> ArgValPairCopyIter<'a> {
+    pub fn new(limit: &'a u8, lengths: &'a [u8], data: &'a [u8]) -> Self {
+        Self {
+            current: 0,
+            data_idx: 0,
+            limit,
+            lengths,
+            data,
+        }
+    }
+}
+
+impl Iterator for ArgValPairCopyIter<'_> {
+    type Item = Result<ArgValPair, TacpErr>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current < *self.limit as u16 {
+            let len = self.lengths[self.current as usize] as usize;
+            let new_idx = self.data_idx + len;
+            let ret = String::from_utf8_lossy(&self.data[self.data_idx..new_idx]).into_owned();
+            self.data_idx = new_idx;
+            self.current += 1;
+            return Some(ArgValPair::try_from(ret));
+        }
+        None
     }
 }

@@ -9,5 +9,9 @@ edition = "2021"
 [profile.dev]
 opt-level = 1
 
+[profile.deboog]
+inherits = "dev"
+opt-level = 0
+
 [profile.release]
 lto = true

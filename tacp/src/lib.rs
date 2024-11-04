@@ -1,16 +1,22 @@
-#![allow(stable_features)]
-#![feature(error_in_core)]
+#![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![feature(error_in_core, ptr_metadata)]
 #![no_std]
 extern crate alloc;
 
 use alloc::borrow::ToOwned;
 use alloc::string::{String, ToString};
-use alloc::{format, vec};
 use alloc::vec::Vec;
-use argvalpair::ArgValPair;
+use alloc::boxed::Box;
+use argvalpair::ArgValPairCopyIter;
+
+use zerocopy::*;
+use zerocopy::byteorder::network_endian::{U32, U16};
+use zerocopy_derive::*;
 
 pub mod obfuscation;
 pub mod argvalpair;
+
 //https://datatracker.ietf.org/doc/html/rfc8907
 // The following general rules apply to all TACACS+ packet types:
 // * To signal that any variable-length data fields are unused, the corresponding length values are set to zero. Such fields MUST be ignored, and treated as if not present.
@@ -18,7 +24,14 @@ pub mod argvalpair;
 // * All length values are unsigned and in network byte order.
 
 /// TACACS+ Header Version Field
-pub type Version = u8;
+
+#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned, IntoBytes)]
+#[repr(u8)]
+pub enum Version {
+    VersionDefault = 0xc << 4,
+    VersionOne = (Self::VersionDefault as u8) | 0x1,
+}
+
 
 /// Currently the only defined TACACS+ major version.
 pub const MAJOR_VER: u8 = 0xc;
@@ -27,7 +40,7 @@ pub const MINOR_VER_DEFAULT: u8 = 0x0;
 /// TACACS+ minor version 1. Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
 pub const MINOR_VER_ONE: u8 = 0x1;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned, IntoBytes)]
 #[repr(u8)]
 /// All TACACS+ packets are one of the following 3 types
 pub enum PacketType {
@@ -37,19 +50,6 @@ pub enum PacketType {
     AUTHOR = 0x2,
     /// Accounting
     ACCT = 0x3,
-}
-impl TryFrom<u8> for PacketType {
-    type Error = TacpErr;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        let value = u8::from_be(value);
-        match value {
-            1 => Ok(PacketType::AUTHEN),
-            2 => Ok(PacketType::AUTHOR),
-            3 => Ok(PacketType::ACCT),
-            _ => Err(TacpErr::ParseError(format!("PacketType out of range. Expected 1-3. Got {value}"))),
-        }
-    }
 }
 
 /// This is the sequence number of the current packet.
@@ -82,13 +82,13 @@ pub const SINGLE_CONNECT_FLAG: u8 = 0x4;
 /// the duration of the TACACS+ session. This number **MUST** be generated
 /// by a cryptographically strong random number generation method.
 /// Failure to do so will compromise security of the session. For more details, refer to RFC4086
-pub type SessionID = u32;
+pub type SessionID = U32;
 
 /// The total length of the packet body (not including the header).
 /// Implementations **MUST** allow control over maximum packet sizes
 /// accepted by TACACS+ Servers. The recommended maximum packet size
 /// is 2^12
-pub type PacketLength = u32;
+pub type PacketLength = U32;
 
 /**
 All TACACS+ packets begin with the following 12-byte header.
@@ -109,7 +109,7 @@ Encoding:
 ```
 */
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, Unaligned, IntoBytes)]
 pub struct PacketHeader {
     pub version: Version,
     pub ty: PacketType,
@@ -117,42 +117,6 @@ pub struct PacketHeader {
     pub flags: Flags,
     pub session_id: SessionID,
     pub length: PacketLength,
-}
-impl TryFrom<&[u8;12]> for PacketHeader {
-    type Error = TacpErr;
-    fn try_from(value: &[u8;12]) -> Result<Self, Self::Error> {
-        let ver = value[0];
-        const TACP_VER_DEFAULT: u8 = MAJOR_VER << 4 | MINOR_VER_DEFAULT;
-        const TACP_VER_ONE: u8 = MAJOR_VER << 4 | MINOR_VER_ONE;
-        if ver != TACP_VER_DEFAULT && ver != TACP_VER_ONE {
-            return Err(TacpErr::ParseError(format!("TACACS+ Version Number not recognized. Expected: {TACP_VER_DEFAULT:x} or {TACP_VER_ONE:x}. Got: {ver:x}")));
-        }
-        // SAFETY: the slice is known to be large enough at compile time
-        let session_id = SessionID::from_be_bytes(unsafe {*(&value[4..8] as *const [u8] as *const [u8; 4])});
-        let length = PacketLength::from_be_bytes(unsafe {*(&value[8..12] as *const [u8] as *const [u8; 4])});
-        Ok(Self {
-            version: value[0],
-            ty: PacketType::try_from(value[1])?,
-            seq_no: value[2],
-            flags: value[3],
-            session_id,
-            length,
-        })
-    }
-}
-
-impl PacketHeader {
-    #[allow(clippy::zero_prefixed_literal, clippy::identity_op)]
-    pub fn encode(&self) -> Vec<u8> {
-        let mut res = Vec::with_capacity(12);
-        res.push(self.version);
-        res.push(self.ty as u8);
-        res.push(self.seq_no);
-        res.push(self.flags);
-        res.extend(self.session_id.to_be_bytes());
-        res.extend(self.length.to_be_bytes());
-        res
-    }
 }
 
 /**
@@ -177,31 +141,16 @@ Encoding:
 ```
 */
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 pub enum AuthenStartAction {
     LOGIN    = 0x1,
     CHPASS   = 0x2,
     SENDAUTH = 0x4,
 }
 
-impl TryFrom<u8> for AuthenStartAction {
-    type Error = TacpErr;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x1 => Ok(AuthenStartAction::LOGIN),
-            0x2 => Ok(AuthenStartAction::CHPASS),
-            0x4 => Ok(AuthenStartAction::SENDAUTH),
-            _ => Err(TacpErr::ParseError(format!("AuthenStartAction Out of range. Expected 1, 2, 4. Got {value}"))),
-        }
-    }
-}
-
 /// Indicates what method of authentication is being requested/used.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 pub enum AuthenType {
     ASCII = 0x1,
     PAP = 0x2,
@@ -209,28 +158,13 @@ pub enum AuthenType {
     MSCHAP_V1 = 0x5,
     MSCHAP_V2 = 0x6,
 }
-impl TryFrom<u8> for AuthenType {
-    type Error = TacpErr;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x1 => Ok(AuthenType::ASCII),
-            0x2 => Ok(AuthenType::PAP),
-            0x3 => Ok(AuthenType::CHAP),
-            0x5 => Ok(AuthenType::MSCHAP_V1),
-            0x6 => Ok(AuthenType::MSCHAP_V2),
-            _   => Err(TacpErr::ParseError(format!("AuthenType Out of Range. Expected: 1-6. Got {value}"))),
-        }
-    }
-}
 
 /// Authen Privilege Level Packet Field
 pub type PrivLevel = u8;
 
 /// Indicates the Service that authentication is being requested for.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 pub enum AuthenService {
     NONE = 0x0,
     LOGIN = 0x1,
@@ -242,27 +176,7 @@ pub enum AuthenService {
     NASI = 0x8,
     FWPROXY = 0x9,
 }
-impl TryFrom<u8> for AuthenService {
-    type Error = TacpErr;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x0 => Ok(AuthenService::NONE),
-            0x1 => Ok(AuthenService::LOGIN),
-            0x2 => Ok(AuthenService::ENABLE),
-            0x3 => Ok(AuthenService::PPP),
-            0x5 => Ok(AuthenService::PT),
-            0x6 => Ok(AuthenService::RCMD),
-            0x7 => Ok(AuthenService::X25),
-            0x8 => Ok(AuthenService::NASI),
-            0x9 => Ok(AuthenService::FWPROXY),
-            _   => Err(TacpErr::ParseError(format!("AuthenService Out of Range. Expected: 0-9. Got {value}"))),
-        }
-    }
-}
-
-/// Authentication Start Packet Variable Data Length Field
-pub type AuthenStartVariDataLen = u8;
 /**
 The Authentication START Packet Body
 
@@ -284,73 +198,128 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Immutable, TryFromBytes, Unaligned)]
+#[repr(C)]
 pub struct AuthenStartPacket {
     pub action: AuthenStartAction,
     pub priv_level: PrivLevel,
     pub authen_type: AuthenType,
     pub authen_svc: AuthenService,
-    pub user: Vec<u8>,
-    pub port: Vec<u8>,
-    pub rem_addr: Vec<u8>,
-    pub data: Vec<u8>,
-    pub len: usize,
+    pub user_len: u8,
+    pub port_len: u8,
+    pub rem_addr_len: u8,
+    pub data_len: u8,
+    pub varidata: [u8]
 }
-
-impl TryFrom<&[u8]> for AuthenStartPacket {
-    type Error = TacpErr;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 7 {
-            return Err(TacpErr::ParseError("AuthenStartPacket is impossibly short (len < 7)".to_owned()));
+impl AuthenStartPacket {
+    pub fn get_user(&self) -> Option<&[u8]> {
+        let start = 0usize;
+        let end = self.user_len as usize;
+        if end-start == 0 {
+            return None;
         }
-        let user_len = value[4] as usize;
-        let port_len = value[5] as usize;
-        let rem_addr_len = value[6] as usize;
-        let data_len = value[7] as usize;
-        let total_expected_len = 8 + user_len + port_len + rem_addr_len + data_len;
-        if value.len() < total_expected_len {
-            return  Err(TacpErr::ParseError(format!("Packet length does not match parsed lengths from header. Key mismatch likey. Expected {total_expected_len}. Got {}", value.len())));
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_port(&self) -> Option<&[u8]> {
+        let start = self.user_len as usize;
+        let end = start + self.port_len as usize;
+        if end-start == 0 {
+            return None;
         }
-        let user_range = 8..8+user_len;
-        let port_range = user_range.end..(user_range.end + port_len);
-        let rem_addr_range = port_range.end..(port_range.end + rem_addr_len);
-        let data_range = rem_addr_range.end..(rem_addr_range.end + data_len);
-        Ok(
-            Self {
-                action: AuthenStartAction::try_from(value[0])?,
-                priv_level: value[1],
-                authen_type: AuthenType::try_from(value[2])?,
-                authen_svc: AuthenService::try_from(value[3])?,
-                user: Vec::from(&value[user_range]),
-                port: Vec::from(&value[port_range]),
-                rem_addr: Vec::from(&value[rem_addr_range]),
-                data: Vec::from(&value[data_range]),
-                len: total_expected_len
-            }
-        )
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_rem_addr(&self) -> Option<&[u8]> {
+        let start = self.user_len as usize + self.port_len as usize;
+        let end = start + self.rem_addr_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_data(&self) -> Option<&[u8]> {
+        let start = self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
+        let end = start + self.data_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn len(&self) -> usize {
+        8 // Fixed portion of packet
+        + self.varidata.len()
     }
 }
-
-
-/**
-Authentication REPLY Packet Body
-
-Encoding:
-```
-1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-+----------------+----------------+----------------+----------------+
-|     status     |      flags     |        server_msg_len           |
-+----------------+----------------+----------------+----------------+
-|           data_len              |        server_msg ...
-+----------------+----------------+----------------+----------------+
-|           data ...
-+----------------+----------------+
-```
-*/
+#[cfg(feature = "dst-construct")]
+impl AuthenStartPacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + data.len();
+        if len < required_mem {
+            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        }
+        *mem.add(0) = action as u8;
+        *mem.add(1) = priv_level as u8;
+        *mem.add(2) = authen_type as u8;
+        *mem.add(3) = authen_service as u8;
+        *mem.add(4) = user.len() as u8;
+        *mem.add(5) = port.len() as u8;
+        *mem.add(6) = rem_addr.len() as u8;
+        *mem.add(7) = data.len() as u8;
+        let mut varidata_ptr = 8_usize;
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as u8 as usize);
+        varidata_ptr += user.len() as u8 as usize;
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as u8 as usize);
+        varidata_ptr += port.len() as u8 as usize;
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as u8 as usize);
+        varidata_ptr += rem_addr.len() as u8 as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len() as u8 as usize);
+        debug_assert!(varidata_ptr == required_mem);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+        use core::alloc::*;
+        let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
+}
 
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 pub enum AuthenReplyStatus {
     PASS = 0x01,
     FAIL = 0x02,
@@ -384,29 +353,102 @@ Encoding:
 +----------------+----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AuthenReplyPacket {
     pub status: AuthenReplyStatus,
     pub flags: u8,
-    pub serv_msg: Vec<u8>,
-    pub data: Vec<u8>,
+    pub serv_msg_len: U16,
+    pub data_len: U16,
+    pub varidata: [u8],
 }
-
-#[allow(clippy::len_without_is_empty)]
 impl AuthenReplyPacket {
-    pub fn encode(&self) -> Vec<u8> {
-        let mut res = Vec::with_capacity(self.len());
-        res.push(self.status as u8);
-        res.push(self.flags);
-        res.extend((self.serv_msg.len() as u16).to_be_bytes());
-        res.extend((self.data.len() as u16).to_be_bytes());
-        res.extend(self.serv_msg.iter());
-        res.extend(self.data.iter());
-        res
+    pub fn get_serv_msg(&self) -> Option<&[u8]> {
+        let start = 0;
+        let end = self.serv_msg_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_data(&self) -> Option<&[u8]> {
+        let start = self.serv_msg_len.get() as usize;
+        let end = start + self.data_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        6 + self.serv_msg.len() + self.data.len()
+        6 + self.data_len.get() as usize + self.serv_msg_len.get() as usize
     }
+}
+#[cfg(feature = "dst-construct")]
+impl AuthenReplyPacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `serv_msg` or `data`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        if len < 6+serv_msg.len()+data.len() {
+            return Err(TacpErr::ParseError("FIXME error message".to_owned()));
+        }
+        let serv_msg_len = U16::new(serv_msg.len() as u16);
+        let serv_msg_bytes = serv_msg_len.as_bytes();
+        let data_len = U16::new(data.len() as u16);
+        let data_len_bytes = data_len.as_bytes();
+        *mem.add(0) = status as u8;
+        *mem.add(1) = flags;
+        *mem.add(2) = serv_msg_bytes[0];
+        *mem.add(3) = serv_msg_bytes[1];
+        *mem.add(4) = data_len_bytes[0];
+        *mem.add(5) = data_len_bytes[1];
+        let start = 6;
+        let end = start + serv_msg.len() as u16 as usize;
+        copy_nonoverlapping(serv_msg.as_ptr(), mem.add(start), end-start);
+        let start = end;
+        let end = start + data.len() as u16 as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
+        debug_assert!(end == len);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        use core::alloc::*;
+        let len = 6 + serv_msg.len() + data.len();
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), status, flags, serv_msg, data).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
 }
 
 /**
@@ -427,47 +469,100 @@ Encoding:
 +----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AuthenContinuePacket {
-    pub abort: bool,
-    pub user_msg: Vec<u8>,
-    pub data: Vec<u8>
-}
-impl TryFrom<&[u8]> for AuthenContinuePacket {
-    type Error = TacpErr;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 5 {
-            return Err(TacpErr::ParseError(format!("AuthenContinuePacket is impossibly small (len < 5): actual {}", value.len())));
-        }
-        // SAFETY: The length is checked.
-        let user_msg_len = u16::from_be_bytes(unsafe {*(&value[0..=1] as *const [u8] as *const [u8;2])}) as usize;
-        let data_len = u16::from_be_bytes(unsafe {*(&value[1..=2] as *const [u8] as *const [u8;2])}) as usize;
-        let total_expected_len = 5+user_msg_len+data_len;
-        if value.len() < total_expected_len {
-            return Err(TacpErr::ParseError(format!("AuthenContinuePacket too small. Header size: {total_expected_len} Actual Size: {}", value.len())))
-        }
-        let flags = value[4];
-        let abort = flags & 0x1 == 1;
-        let mut user_msg = vec!(0; user_msg_len);
-        user_msg.copy_from_slice(&value[5..(5+user_msg_len)]);
-        let mut data = vec!(0; data_len);
-        data.copy_from_slice(&value[(5+user_msg_len)..(total_expected_len)]);
-        Ok(
-            Self {
-                abort,
-                user_msg,
-                data,
-            }
-        )
-    }
+    pub user_msg_len: U16,
+    pub data_len: U16,
+    pub flags: u8,
+    pub varidata: [u8],
 }
 
-#[allow(clippy::len_without_is_empty)]
 impl AuthenContinuePacket {
-    pub fn len(&self) -> usize {
-        5 + self.user_msg.len() + self.data.len()
+    pub fn get_user_msg(&self) -> Option<&[u8]> {
+        let start = 0;
+        let end = self.user_msg_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
+    pub fn get_data(&self) -> Option<&[u8]> {
+        let start = self.user_msg_len.get() as usize;
+        let end = start + self.data_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn len(&self) -> usize {
+        5 + self.user_msg_len.get() as usize + self.data_len.get() as usize
+    }
+}
+#[cfg(feature = "dst-construct")]
+impl AuthenContinuePacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len())}
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user_msg` or `data`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), flags: u8, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        if len < 5 + user_msg.len() + data.len() {
+            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        }
+        let user_msg_len_be = U16::new(user_msg.len() as u16);
+        let data_len_be = U16::new(data.len() as u16);
+        let user_msg_len_bytes = user_msg_len_be.as_bytes();
+        let data_len_bytes = data_len_be.as_bytes();
+        *mem.add(0) = user_msg_len_bytes[0];
+        *mem.add(1) = user_msg_len_bytes[1];
+        *mem.add(2) = data_len_bytes[0];
+        *mem.add(3) = data_len_bytes[1];
+        *mem.add(4) = flags;
+        let start = 5;
+        let end = 5+user_msg.len() as u16 as usize;
+        copy_nonoverlapping(user_msg.as_ptr(), mem.add(start), end-start);
+        let start = end;
+        let end = start + data.len() as u16 as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
+        debug_assert!(end == len);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+        use core::alloc::*;
+        let len = 5 + user_msg.len() + data.len();
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), flags, user_msg, data).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
 }
 
 
@@ -485,8 +580,7 @@ impl AuthenContinuePacket {
 /// as those interactions were not conducted using the TACACS+ protocol, they will not be documented here.
 /// For implementers of clients who need details of the other protocols, please refer to the respective Kerberos \[RFC4120\] and RADIUS \[RFC3579\] RFCs.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 pub enum AuthorMethod {
     NOT_SET = 0x00,
     NONE = 0x01,
@@ -499,27 +593,6 @@ pub enum AuthorMethod {
     RADIUS = 0x10,
     KRB4 = 0x11,
     RCMD = 0x20,
-}
-
-impl TryFrom<u8> for AuthorMethod {
-    type Error = TacpErr;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Ok(match value {
-            0x00 => AuthorMethod::NOT_SET,
-            0x01 => AuthorMethod::NONE,
-            0x02 => AuthorMethod::KRB5,
-            0x03 => AuthorMethod::LINE,
-            0x04 => AuthorMethod::ENABLE,
-            0x05 => AuthorMethod::LOCAL,
-            0x06 => AuthorMethod::TACACSPLUS,
-            0x08 => AuthorMethod::GUEST,
-            0x10 => AuthorMethod::RADIUS,
-            0x11 => AuthorMethod::KRB4,
-            0x20 => AuthorMethod::RCMD,
-            _ => { return Err(TacpErr::ParseError(format!("AuthorMethod out of range. Expected: 0x0-0x8, 0x10, 0x11, 0x20. Got {value}"))) }
-        })
-    }
 }
 
 /**
@@ -551,81 +624,145 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AuthorRequestPacket {
     pub method: AuthorMethod,
     pub priv_level: PrivLevel,
     pub authen_type: AuthenType,
     pub authen_svc: AuthenService,
-    pub user: Vec<u8>,
-    pub port: Vec<u8>,
-    pub rem_addr: Vec<u8>,
-    pub args: Vec<ArgValPair>,
-    pub len: usize,
+    pub user_len: u8,
+    pub port_len: u8,
+    pub rem_addr_len: u8,
+    pub arg_cnt: u8,
+    pub varidata: [u8]
 }
 
-impl TryFrom<&[u8]> for AuthorRequestPacket {
-    type Error = TacpErr;
-
-    #[allow(clippy::needless_range_loop)] // false positive
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        fn bounds_check(pkt_size: usize, ptr: usize, pkt_component: &str) -> Result<usize, TacpErr> {
-            if ptr > pkt_size {
-                Err(TacpErr::ParseError(format!("AuthorRequestPacket OOB read parsing: {pkt_component}")))
-            }
-            else {
-                Ok(ptr)
-            }
+impl AuthorRequestPacket {
+    pub fn get_user(&self) -> Option<&[u8]> {
+        let start = self.arg_cnt as usize;
+        let end = start + self.user_len as usize;
+        if end-start == 0 {
+            return None;
         }
-        let pkt_size = value.len();
-        if pkt_size < 8 {
-            return Err(TacpErr::ParseError("AuthorRequestPacket is impossibly small (len < 8)".to_owned()));
-        }
-        let method = AuthorMethod::try_from(value[0])?;
-        let priv_level = value[1];
-        let authen_type = AuthenType::try_from(value[2])?;
-        let authen_svc = AuthenService::try_from(value[3])?;
-        let user_len = value[4] as usize;
-        let port_len = value[5] as usize;
-        let rem_addr_len = value[6] as usize;
-        let arg_cnt = value[7] as usize;
-        if pkt_size < 8+arg_cnt {
-            return Err(TacpErr::ParseError(format!("AuthorRequestPacket too small for arguments (len ({pkt_size}) < arg_count ({arg_cnt}) + 8)")));
-        }
-        let mut args = Vec::with_capacity(arg_cnt);
-        let mut arg_lens = Vec::with_capacity(arg_cnt);
-        let mut ptr = 8;
-        while ptr < 8 + arg_cnt {
-            arg_lens.push(value[bounds_check(pkt_size, ptr, "arg length")?] as usize);
-            ptr += 1;
-        }
-        ptr = bounds_check(pkt_size, ptr+user_len, "user")?;
-        let user = Vec::from(&value[(ptr-user_len)..ptr]);
-        ptr = bounds_check(pkt_size, ptr+port_len, "port")?;
-        let port = Vec::from(&value[(ptr-user_len)..ptr]);
-        ptr = bounds_check(pkt_size, ptr+rem_addr_len, "rem addr")?;
-        let rem_addr = Vec::from(&value[(ptr-rem_addr_len)..ptr]);
-
-        for arg_counter in 0..arg_lens.len() {
-            let this_arg_len = arg_lens[arg_counter];
-            ptr = bounds_check(pkt_size, ptr+this_arg_len, &format!("argument#{arg_counter}"))?;
-            let mut temp = vec!(0; this_arg_len);
-            temp.copy_from_slice(&value[(ptr-this_arg_len)..ptr]);
-            args.push(ArgValPair::try_from(String::from_utf8_lossy(&temp).into_owned())?);
-        }
-
-        Ok(AuthorRequestPacket {
-            method,
-            priv_level,
-            authen_type,
-            authen_svc,
-            user,
-            port,
-            rem_addr,
-            args,
-            len: ptr,
-        })
+        Some(&self.varidata[start..end])
     }
+    pub fn get_port(&self) -> Option<&[u8]> {
+        let start = self.arg_cnt as usize + self.user_len as usize;
+        let end = start + self.port_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_rem_addr(&self) -> Option<&[u8]> {
+        let start = self.arg_cnt as usize + self.user_len as usize + self.port_len as usize;
+        let end = start + self.rem_addr_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
+        if idx > self.arg_cnt {
+            return None;
+        }
+        let arg_len = self.varidata[idx as usize] as usize;
+        let mut skip = 
+            self.arg_cnt as usize
+            + self.user_len as usize
+            + self.port_len as usize
+            + self.rem_addr_len as usize;
+        for n in 0..idx {
+            skip += self.varidata[n as usize] as usize;
+        }
+        Some(&self.varidata[skip..(skip+arg_len)])
+    }
+    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
+        let lengths_range = 0..(self.arg_cnt as usize);
+        let data_range_base = 
+            self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
+        ArgValPairCopyIter::new(&self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
+    }
+    pub fn len(&self) -> usize {
+        8 + self.varidata.len()
+    }
+}
+#[cfg(feature = "dst-construct")]
+impl AuthorRequestPacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        if len < required_mem {
+            return Err(TacpErr::ParseError("Fixme".to_owned()));
+        }
+        *mem.add(0) = method as u8;
+        *mem.add(1) = priv_level as u8;
+        *mem.add(2) = authen_type as u8;
+        *mem.add(3) = authen_svc as u8;
+        *mem.add(4) = user.len() as u8;
+        *mem.add(5) = port.len() as u8;
+        *mem.add(6) = rem_addr.len() as u8;
+        *mem.add(7) = args.len() as u8;
+        let mut varidata_ptr = 8usize;
+        for arg_n in 0..(args.len() as u8 as usize) {
+            *mem.add(varidata_ptr) = args[arg_n].len() as u8;
+            varidata_ptr += 1;
+        }
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as u8 as usize);
+        varidata_ptr += user.len() as u8 as usize;
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as u8 as usize);
+        varidata_ptr += port.len() as u8 as usize;
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as u8 as usize);
+        varidata_ptr += rem_addr.len() as u8 as usize;
+        for arg in args.iter() {
+            let arg_len = arg.len() as u8 as usize;
+            copy_nonoverlapping(arg.as_ptr(), mem.add(varidata_ptr), arg_len);
+            varidata_ptr += arg_len;
+        }
+        debug_assert!(varidata_ptr == required_mem);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+        use core::alloc::*;
+        let len = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
 }
 
 /**
@@ -653,43 +790,136 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AuthorReplyPacket {
     pub status: AuthorStatus,
-    pub args: Vec<ArgValPair>,
-    pub server_msg: Vec<u8>,
-    pub data: Vec<u8>,
+    pub arg_cnt: u8,
+    pub server_msg_len: U16,
+    pub data_len: U16,
+    pub varidata: [u8],
 }
 
-#[allow(clippy::len_without_is_empty)]
 impl AuthorReplyPacket {
-    pub fn encode(&self) -> Vec<u8> {
-        let args = self.args.iter().map(|c|c.to_bytes()).collect::<Vec<_>>();
-        let mut ret = Vec::with_capacity(self.len());
-        ret.push(self.status as u8);
-        ret.push(self.args.len() as u8);
-        let server_msg_len = self.server_msg.len() as u16;
-        ret.extend(server_msg_len.to_be_bytes());
-        let data_len = self.data.len();
-        ret.extend(data_len.to_be_bytes());
-        for arg in args.iter() {
-            ret.push(arg.len() as u8);
+    pub fn get_serv_msg(&self) -> Option<&[u8]> {
+        let start = self.arg_cnt as usize;
+        let end = start+self.server_msg_len.get() as usize;
+        if end-start == 0 {
+            return None;
         }
-        ret.extend(self.server_msg.iter());
-        ret.extend(self.data.iter());
-        for arg in args.iter() {
-            ret.extend(arg.iter());
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_data(&self) -> Option<&[u8]> {
+        let start = self.arg_cnt as usize + self.server_msg_len.get() as usize;
+        let end = start+self.data_len.get() as usize;
+        if end-start == 0 {
+            return None;
         }
-        ret
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
+        if idx > self.arg_cnt {
+            return None;
+        }
+        let arg_len = self.varidata[idx as usize] as usize;
+        let mut skip = 
+            self.arg_cnt as usize
+            + self.server_msg_len.get() as usize
+            + self.data_len.get() as usize;
+        for n in 0..idx {
+            skip += self.varidata[n as usize] as usize;
+        }
+        Some(&self.varidata[skip..(skip+arg_len)])
+    }
+    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
+        let lengths_range = 0..(self.arg_cnt as usize);
+        let data_range_base = 
+            self.arg_cnt as usize + self.server_msg_len.get() as usize + self.data_len.get() as usize;
+        ArgValPairCopyIter::new(&self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
-        6 + self.args.len() + self.server_msg.len() + self.data.len() + self.args.iter().map(|arg|arg.to_bytes().len()).sum::<usize>()
+        6 + self.varidata.len()
     }
+}
+#[cfg(feature = "dst-construct")]
+impl AuthorReplyPacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        let required_mem = 6 + server_msg.len() + data.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        if len < required_mem {
+            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        }
+        *mem.add(0) = status as u8;
+        *mem.add(1) = args.len() as u8;
+        let server_msg_len_be = U16::new(server_msg.len() as u16);
+        let data_len_be = U16::new(data.len() as u16);
+        let server_msg_len_bytes = server_msg_len_be.as_bytes();
+        let data_len_bytes = data_len_be.as_bytes();
+        *mem.add(2) = server_msg_len_bytes[0];
+        *mem.add(3) = server_msg_len_bytes[1];
+        *mem.add(4) = data_len_bytes[0];
+        *mem.add(5) = data_len_bytes[1];
+        let server_msg_start = 6 + args.len();
+        let server_msg_end = server_msg_start + server_msg.len();
+        copy_nonoverlapping(server_msg.as_ptr(), mem.add(server_msg_start), server_msg_end-server_msg_start);
+        let data_msg_start = server_msg_end;
+        let data_msg_end = data_msg_start + data.len();
+        copy_nonoverlapping(data.as_ptr(), mem.add(data_msg_start), data_msg_end-data_msg_start);
+        let mut endptr = data_msg_end;
+        for (idx, arg) in args.iter().enumerate() {
+            let arg = *arg;
+            let len = arg.len();
+            *mem.add(6 + idx) = len as u8;
+            copy_nonoverlapping(arg.as_ptr(), mem.add(endptr), len);
+            endptr += len
+        }
+        debug_assert!(endptr == required_mem);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        use core::alloc::*;
+        let len = 6 + server_msg.len() + data.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), status, args, server_msg, data).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
 }
 
 /// Status of the Authorization Request
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 #[repr(u8)]
 pub enum AuthorStatus {
     /// Authorized as-is
@@ -734,21 +964,85 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
  
-NOTE: This is basically the same as the Authorization START Packet body,
+NOTE: This is basically the same as the Authorization Request Packet body,
     We take advantage of this by parsing it as such, then adding the flags
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AcctRequestPacket {
     pub flags: AcctFlags,
-    pub method: AuthorMethod,
-    pub priv_level: PrivLevel,
-    pub authen_type: AuthenType,
-    pub authen_svc: AuthenService,
-    pub user: Vec<u8>,
-    pub port: Vec<u8>,
-    pub rem_addr: Vec<u8>,
-    pub args: Vec<ArgValPair>,
-    pub len: usize,
+    pub inner: AuthorRequestPacket,
+}
+impl AcctRequestPacket {
+    pub fn get_user(&self) -> Option<&[u8]> {
+        self.inner.get_user()
+    }
+    pub fn get_port(&self) -> Option<&[u8]> {
+        self.inner.get_port()
+    }
+    pub fn get_rem_addr(&self) -> Option<&[u8]> {
+        self.inner.get_rem_addr()
+    }
+    pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
+        self.inner.get_raw_argvalpair(idx)
+    }
+    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
+        self.inner.iter_arg_copy()
+    }
+    pub fn len(&self) -> usize {
+        1 + self.inner.len()
+    }
+}
+#[cfg(feature = "dst-construct")]
+impl AcctRequestPacket {
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+    }
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
+        let len = mem.1;
+        let mem = mem.0;
+        let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        if len < required_mem {
+            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        }
+        *mem = flags as u8;
+        AuthorRequestPacket::initialize((mem.add(1), len-1), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+        use core::alloc::*;
+        let len = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
 }
 
 /**
@@ -777,56 +1071,16 @@ FLAG_STOP = 0x4
 
 FLAG_WATCHDOG = 0x8
 */
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(u8)]
 pub enum AcctFlags {
-    RecordStart,
-    RecordStop,
-    WatchdogNoUpdate,
-    WatchdogUpdate,
-}
-impl TryFrom<u8> for AcctFlags {
-    type Error = TacpErr;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value & 0xE {
-            0x2 => Ok(Self::RecordStart),
-            0x4 => Ok(Self::RecordStop),
-            0x8 => Ok(Self::WatchdogNoUpdate),
-            0xA => Ok(Self::WatchdogUpdate),
-            _ => Err(TacpErr::ParseError(format!("AcctFlags out of range. Expected: 0x2, 0x4, 0x8, 0xA. Got {value}"))),
-        }
-    }
+    RecordStart = 0x2,
+    RecordStop = 0x4,
+    WatchdogNoUpdate = 0x8,
+    WatchdogUpdate = 0xA,
 }
 
-impl TryFrom<&[u8]> for AcctRequestPacket {
-    type Error = TacpErr;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 9 {
-            return Err(TacpErr::ParseError("Packet is impossibly small (len < 9)".to_owned()));
-        }
-        let flags = AcctFlags::try_from(value[0])?;
-        Ok(
-            Self::from((flags, AuthorRequestPacket::try_from(&value[1..])?))
-        )
-    }
-}
-impl From<(AcctFlags, AuthorRequestPacket)> for AcctRequestPacket {
-    fn from(value: (AcctFlags, AuthorRequestPacket)) -> Self {
-        Self {
-            flags: value.0,
-            method: value.1.method,
-            priv_level: value.1.priv_level,
-            authen_type: value.1.authen_type,
-            authen_svc: value.1.authen_svc,
-            user: value.1.user,
-            port: value.1.port,
-            rem_addr: value.1.rem_addr,
-            args: value.1.args,
-            len: value.1.len + 1, // + 1 for flags
-        }
-    }
-}
 /**
 The Accounting REPLY Packet Body
 
@@ -842,33 +1096,106 @@ Encoding:
 +----------------+
 ```
 */
-#[derive(Debug, Clone)]
+#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[repr(C)]
 pub struct AcctReplyPacket {
+    pub server_msg_len: U16,
+    pub data_len: U16,
     pub status: AcctStatus,
-    pub server_msg: Vec<u8>,
-    pub data: Vec<u8>,
+    pub varidata: [u8]
 }
-
-#[allow(clippy::len_without_is_empty)]
 impl AcctReplyPacket {
-    pub fn encode(&self) -> Vec<u8> {
-        let server_msg_len = self.server_msg.len();
-        let data_len = self.data.len();
-        let mut ret = Vec::with_capacity(5 + server_msg_len + data_len);
-        ret.extend(server_msg_len.to_be_bytes());
-        ret.extend(data_len.to_be_bytes());
-        ret.push(self.status as u8);
-        ret.extend(self.server_msg.iter());
-        ret.extend(self.data.iter());
-        ret
+    pub fn get_serv_msg(&self) -> Option<&[u8]> {
+        let start = 0usize;
+        let end = start + self.server_msg_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
+    }
+    pub fn get_data(&self) -> Option<&[u8]> {
+        let start = self.server_msg_len.get() as usize;
+        let end = start + self.data_len.get() as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        5 + self.server_msg.len() + self.data.len()
+        5 + self.varidata.len()
+    }
+}
+#[cfg(feature = "dst-construct")]
+impl AcctReplyPacket {
+    /// # Safety
+    /// 
+    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `server_msg` or `data`
+    /// 
+    /// Note that mem.0 is a **thin** pointer.
+    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
+    pub unsafe fn initialize(mem: (*mut u8, usize), status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
+        use core::ptr::copy_nonoverlapping;
+        let len = mem.1;
+        let mem = mem.0;
+        let required_mem = 5 + server_msg.len() as u16 as usize + data.len() as u16 as usize;
+        if len < required_mem {
+            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        }
+        let server_msg_len_be = U16::new(server_msg.len() as u16);
+        let server_msg_len_bytes = server_msg_len_be.as_bytes();
+        let data_len_be = U16::new(data.len() as u16);
+        let data_len_bytes = data_len_be.as_bytes();
+        *mem.add(0) = server_msg_len_bytes[0];
+        *mem.add(1) = server_msg_len_bytes[1];
+        *mem.add(2) = data_len_bytes[0];
+        *mem.add(3) = data_len_bytes[1];
+        *mem.add(4) = status as u8;
+        let mut start = 5usize;
+        let mut end = start+server_msg.len() as u16 as usize;
+        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len() as u16 as usize);
+        start = end;
+        end = start + data.len() as u16 as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len() as u16 as usize);
+        debug_assert!(end == required_mem);
+        Ok(())
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        use core::alloc::*;
+        let len = 5 + server_msg.len() + data.len();
+        let layout = Layout::array::<u8>(len).unwrap();
+        let ptr = alloc::alloc::alloc(layout);
+        if ptr.is_null() {
+            panic!();
+        }
+        Self::initialize((ptr, len), status, server_msg, data).unwrap();
+        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let ret = Box::from_raw(fatptr);
+        ret
+    }}
+
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
+    }
+    /// # Safety
+    /// 
+    /// Caller must maintain endianness, length, enum variants. **Do not use this to encrypt packets**, use `boxed_to_bytes` instead.
+    /// Also marked unsafe due to untested slice-DST wrangling internals. More testing is required.
+    pub unsafe fn as_bytes_mut(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
+    }
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+        let real_len = s.len();
+        let thinptr = Box::into_raw(s) as *mut ();
+        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
     }
 }
 
 /// Accounting Status Field
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 #[repr(u8)]
 pub enum AcctStatus {
     SUCCESS = 0x1,
@@ -893,5 +1220,26 @@ impl core::error::Error for TacpErr {}
 impl From<TacpErr> for Vec<u8> {
     fn from(value: TacpErr) -> Self {
         value.to_string().as_bytes().to_owned()
+    }
+}
+
+impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
+    fn from(_value: zerocopy::error::AlignmentError<S, D>) -> Self {
+        todo!()
+    }
+}
+impl From<zerocopy::error::AllocError> for TacpErr {
+    fn from(_value: zerocopy::error::AllocError) -> Self {
+        todo!()
+    }
+}
+impl<S, D> From<zerocopy::error::SizeError<S,D>> for TacpErr {
+    fn from(_value: zerocopy::error::SizeError<S,D>) -> Self {
+        todo!()
+    }
+}
+impl<A, S, V> From<ConvertError<A, S, V>> for TacpErr {
+    fn from(_value: ConvertError<A, S, V>) -> Self {
+        todo!()
     }
 }

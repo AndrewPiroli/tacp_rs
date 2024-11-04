@@ -51,15 +51,16 @@
 //!
 //! Commonly, such failures are seen when the keys are mismatched between the client and the
 //! TACACS+ server.
-use crate::{PacketHeader, PacketLength};
+use crate::PacketHeader;
 use md5::{digest::core_api::CoreWrapper, Digest, Md5, Md5Core};
 
 
 /// Iterator that generates the pseudo random PAD for obfuscation of TACACS+ packets
+#[repr(C, align(32))]
 pub struct TacacsMd5Pad<'a> {
     session_id: [u8; 4],
     ver_plus_seq: [u8; 2],
-    remaining: PacketLength,
+    remaining: u32,
     shared_secret: &'a[u8],
     md5_state: CoreWrapper<Md5Core>,
     md5_buf: [u8; 16],
@@ -67,7 +68,7 @@ pub struct TacacsMd5Pad<'a> {
 }
 impl<'a> TacacsMd5Pad<'a> {
     #[allow(clippy::zero_prefixed_literal, clippy::identity_op)]
-    pub fn new(header: PacketHeader, shared_secret: &'a [u8]) -> Self {
+    pub fn new(header: &PacketHeader, shared_secret: &'a [u8]) -> Self {
         let mut s = TacacsMd5Pad {
             session_id: [0; 4],
             ver_plus_seq: [0;2],
@@ -77,13 +78,9 @@ impl<'a> TacacsMd5Pad<'a> {
             md5_buf: [0; 16],
             buf_ptr: 16,
         };
-        s.remaining = header.length;
-        // FIXME: big endian
-        s.session_id[0] = ((header.session_id & 0xff000000) >> 24) as u8;
-        s.session_id[1] = ((header.session_id & 0x00ff0000) >> 16) as u8;
-        s.session_id[2] = ((header.session_id & 0x0000ff00) >> 08) as u8;
-        s.session_id[3] = ((header.session_id & 0x000000ff) >> 00) as u8;
-        s.ver_plus_seq[0] = header.version;
+        s.remaining = header.length.get();
+        s.session_id = header.session_id.to_bytes();
+        s.ver_plus_seq[0] = header.version as u8;
         s.ver_plus_seq[1] = header.seq_no;
         s.md5_state.update(s.session_id.iter());
         s.md5_state.update(shared_secret);
@@ -93,7 +90,7 @@ impl<'a> TacacsMd5Pad<'a> {
     }
 }
 
-impl<'a> Iterator for TacacsMd5Pad<'a> {
+impl Iterator for TacacsMd5Pad<'_> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -124,7 +121,7 @@ impl<'a> Iterator for TacacsMd5Pad<'a> {
 
 /// Run the obfuscation algorithm in place on a packet. The process is symmetric so this handles
 /// obfucation and de-obfuscation. NOTE: The caller should check header.length == packet_body.len()
-pub fn obfuscate_in_place(header: PacketHeader, shared_secret: &[u8], packet_body: &mut [u8]) {
+pub fn obfuscate_in_place(header: &PacketHeader, shared_secret: &[u8], packet_body: &mut [u8]) {
     core::iter::zip(packet_body.iter_mut(), TacacsMd5Pad::new(header, shared_secret))
     .for_each(|(packet_byte, padbyte)|{
         *packet_byte ^= padbyte;

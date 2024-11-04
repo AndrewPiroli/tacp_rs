@@ -14,6 +14,8 @@ use fnv::FnvHashMap;
 use std::sync::OnceLock;
 use std::ops::Deref;
 use tracing::{error, info, instrument, debug};
+use zerocopy::*;
+use zerocopy::byteorder::network_endian::U32;
 
 mod policy;
 type PacketBuf = [u8;256];
@@ -26,22 +28,22 @@ enum AuthenState {
     ASCIIGETPASS,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// Represents reply packets from the server to the client
 enum SrvPacket {
     /// Authen REPLY packet (may or may not terminate session)
-    AuthenReply(AuthenReplyPacket),
+    AuthenReply(Box<AuthenReplyPacket>),
     /// Acknowledge a client AUTH packet with the client abort flag set (terminates session).
     /// The attached String is a message from the client with an explanation, it is logged to the console.
     AuthenClientAbort(String),
     /// An Authen REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AuthenGenericError(Option<Vec<u8>>),
     /// Author REPLY packet (terminates session)
-    AuthorReply(AuthorReplyPacket),
+    AuthorReply(Box<AuthorReplyPacket>),
     /// Author REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AuthorGenericError(Option<Vec<u8>>),
     /// Acct REPLY packet (terminates session)
-    AcctReply(AcctReplyPacket),
+    AcctReply(Box<AcctReplyPacket>),
     /// Acct REPLY packet indicating server side error with an optional ASCII message (terminates session)
     AcctGenericError(Option<Vec<u8>>),
 }
@@ -164,11 +166,11 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 break;
             }
         }
-        let parsed_header = match PacketHeader::try_from(&header) {
+        let parsed_header = match PacketHeader::try_ref_from_bytes(&header) {
             Ok(ph) => ph,
-            Err(_e) => {
-                error!(err = ?_e, "Failed to parse packet header");
-                return;
+            Err(e) => {
+                error!(err = ?e, "Failed to parse packet header");
+                break;
             }
         };
         if parsed_header.seq_no % 2 == 0 {
@@ -198,17 +200,17 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             break;
         }
         debug!(?parsed_header);
-        let mut packet: SmallVec<PacketBuf> = SmallVec::with_capacity(parsed_header.length as usize);
-        packet.resize_with(parsed_header.length as usize, Default::default);
+        let mut packet: SmallVec<PacketBuf> = SmallVec::with_capacity(parsed_header.length.get() as usize);
+        packet.resize_with(parsed_header.length.get() as usize, Default::default);
         if let Err(e) = stream.read_exact(&mut packet).await {
             error!(err = ?e, "Error reading packet body from stream");
             break;
         }
         obfuscate_in_place(parsed_header, key.as_bytes(), &mut packet);
         let reply = match parsed_header.ty {
-            PacketType::AUTHEN => handle_authen_packet(parsed_header.length as usize, packet, &mut cstate),
-            PacketType::AUTHOR => handle_author_packet(parsed_header.length as usize, packet, &mut cstate),
-            PacketType::ACCT   => handle_acct_packet(parsed_header.length as usize, packet, &mut cstate).await,
+            PacketType::AUTHEN => handle_authen_packet(parsed_header.length.get() as usize, packet, &mut cstate),
+            PacketType::AUTHOR => handle_author_packet(parsed_header.length.get() as usize, packet, &mut cstate),
+            PacketType::ACCT   => handle_acct_packet(parsed_header.length.get() as usize, packet, &mut cstate).await,
         };
         let mut terminate_session = false;
         match reply {
@@ -228,10 +230,10 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     seq_no: cstate.seq_no,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
+                let mut packet_body = unsafe { AuthenReplyPacket::boxed_to_bytes(pkt) };
+                obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             },
             SrvPacket::AuthenClientAbort(reason) => {
@@ -240,23 +242,22 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             }
             SrvPacket::AuthenGenericError(msg) => {
                 terminate_session = true;
-                let pkt = AuthenReplyPacket {
-                    status: AuthenReplyStatus::ERROR,
-                    flags: 0,
-                    serv_msg: msg.unwrap_or("Unimplemented".into()),
-                    data: Vec::with_capacity(0)
-                };
+                let mut pkt = unsafe { AuthenReplyPacket::boxed_to_bytes(AuthenReplyPacket::new(
+                    AuthenReplyStatus::ERROR,
+                    0,
+                    &msg.unwrap_or("Unimplemented".into()),
+                    &Vec::with_capacity(0)
+                ))};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHEN,
                     seq_no: cstate.seq_no + 1,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
-                send_reply(&mut stream, header, &packet_body).await.unwrap();
+                obfuscate_in_place(&header, key.as_bytes(), &mut pkt);
+                send_reply(&mut stream, header, &pkt).await.unwrap();
             }
             SrvPacket::AuthorReply(pkt) => {
                 terminate_session = true;
@@ -266,31 +267,30 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     seq_no: cstate.seq_no + 1,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
+                let mut packet_body = unsafe { AuthorReplyPacket::boxed_to_bytes(pkt) };
+                obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             },
             SrvPacket::AuthorGenericError(msg) => {
                 terminate_session = true;
-                let pkt = AuthorReplyPacket {
-                    status: AuthorStatus::ERROR,
-                    args: Vec::with_capacity(0),
-                    server_msg: msg.unwrap_or("Generic error".into()),
-                    data: Vec::with_capacity(0),
-                };
+                let mut pkt = unsafe {AuthorReplyPacket::boxed_to_bytes(AuthorReplyPacket::new(
+                    AuthorStatus::ERROR,
+                    &Vec::with_capacity(0),
+                    &msg.unwrap_or("Generic error".into()),
+                    &Vec::with_capacity(0),
+                ))};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHOR,
                     seq_no: cstate.seq_no + 1,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
-                send_reply(&mut stream, header, &packet_body).await.unwrap();
+                obfuscate_in_place(&header, key.as_bytes(), &mut pkt);
+                send_reply(&mut stream, header, &pkt).await.unwrap();
             }
             SrvPacket::AcctReply(pkt) => {
                 terminate_session = true;
@@ -300,30 +300,29 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     seq_no: cstate.seq_no + 1,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
+                let mut packet_body = unsafe { AcctReplyPacket::boxed_to_bytes(pkt) };
+                obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             }
             SrvPacket::AcctGenericError(msg) => {
                 terminate_session = true;
-                let pkt = AcctReplyPacket{
-                    status: AcctStatus::ERROR,
-                    server_msg: msg.unwrap_or("Generic error".into()),
-                    data: Vec::with_capacity(0),
-                };
+                let mut pkt = unsafe { AcctReplyPacket::boxed_to_bytes(AcctReplyPacket::new(
+                    AcctStatus::ERROR,
+                    &msg.unwrap_or("Generic error".into()),
+                    &Vec::with_capacity(0),
+                ))};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::ACCT,
                     seq_no: cstate.seq_no + 1,
                     flags: 0,
                     session_id: cstate.session,
-                    length: pkt.len() as u32,
+                    length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = pkt.encode();
-                obfuscate_in_place(header, key.as_bytes(), &mut packet_body);
-                send_reply(&mut stream, header, &packet_body).await.unwrap();
+                obfuscate_in_place(&header, key.as_bytes(), &mut pkt);
+                send_reply(&mut stream, header, &pkt).await.unwrap();
             }
         }
         {
@@ -350,8 +349,13 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
 
 #[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
+    use zerocopy::*;
     assert!(header.seq_no % 2 == 0); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
-    let mut reply = header.encode();
+    dbg!(&header);
+    dbg!(obfuscated_body.len(), header.length.get());
+    let mut reply = Vec::with_capacity(header.length.get() as usize);
+    reply.resize(12, 0);
+    header.write_to_prefix(&mut reply).unwrap();
     reply.extend_from_slice(obfuscated_body);
     stream.write_all(&reply).await?;
     Ok(())
@@ -363,19 +367,20 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
     match cstate.authen_state {
         AuthenState::None => { // We have nothing so far, so this is a AUTHEN START packet
             info!("Authen START");
-            let pkt = AuthenStartPacket::try_from(packet.deref());
+            let pkt = AuthenStartPacket::try_ref_from_bytes(&packet);
+            // let pkt = AuthenStartPacket::try_from(packet.deref());
             if pkt.is_err() {
                 error!("Packet Parse Failure");
-                return SrvPacket::AuthenGenericError(Some(pkt.unwrap_err().into()));
+                return SrvPacket::AuthenGenericError(Some(pkt.unwrap_err().to_string().into()));
             }
             let pkt = pkt.unwrap();
-            if pkt.len != expected_length { // probably key failure
-                error!(expected = ?expected_length, actual = ?pkt.len, "Packet len does not match expected. Probable key failure");
+            if pkt.len() != expected_length { // probably key failure
+                error!(expected = ?expected_length, actual = ?pkt.len(), "Packet len does not match expected. Probable key failure");
                 return SrvPacket::AuthenGenericError(Some("pkt len does not match header len".into()));
             }
             match pkt.authen_type {
-                AuthenType::ASCII => return authen_start_ascii(&pkt, cstate),
-                AuthenType::PAP => return authen_start_pap(&pkt, cstate),
+                AuthenType::ASCII => return authen_start_ascii(pkt, cstate),
+                AuthenType::PAP => return authen_start_pap(pkt, cstate),
                 AuthenType::CHAP |
                 AuthenType::MSCHAP_V1 |
                 AuthenType::MSCHAP_V2 => return SrvPacket::AuthenGenericError(Some("This server does not implement CHAP".into())),
@@ -383,64 +388,60 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         },
         AuthenState::ASCIIGETUSER => { // We've replied, so this is a AUTHEN CONTINUE packet
             let pkt = parse_authen_continue(packet.deref(), expected_length).unwrap();
-            if pkt.abort {
-                let reason = String::from_utf8_lossy(&pkt.data);
+            if pkt.flags & 0x1 == 1 { //FIXME Abort flag
+                let reason = String::from_utf8_lossy(pkt.get_data().unwrap_or_default());
                 info!(reason = ?reason, "Client Aborted Authentication Session");
                 return SrvPacket::AuthenClientAbort(reason.into());
             }
-            if pkt.user_msg.is_empty() {
+            if pkt.get_user_msg().is_none() || pkt.get_user_msg().is_some_and(|x|x.is_empty()) {
                 error!("Server request username but none provided");
                 return SrvPacket::AuthenGenericError(Some("Server requested username but none provided".into())); // We asked for a username
             }
-            cstate.authen_info.username = Some(String::from_utf8_lossy(&pkt.user_msg).into());
+            cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into());
             debug!(username = ?cstate.authen_info.username, "Client provides username");
-            let ret = AuthenReplyPacket {
-                status: AuthenReplyStatus::GETPASS,
-                flags: 1 << REPLY_FLAG_NOECHO,
-                serv_msg: "Enter pass".into(),
-                data: Vec::with_capacity(0),
-            };
+            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, 1<<REPLY_FLAG_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0))};
             cstate.authen_state = AuthenState::ASCIIGETPASS;
             info!("requesting ascii password from client");
             return SrvPacket::AuthenReply(ret);
         },
         AuthenState::ASCIIGETPASS => {
             let pkt = parse_authen_continue(packet.deref(), expected_length).unwrap();
-            if pkt.abort {
-                let reason = String::from_utf8_lossy(&pkt.data);
+            if pkt.flags & 0x1 == 1 { //FIXME Abort flag
+                let reason = String::from_utf8_lossy(pkt.get_data().unwrap_or_default());
                 return SrvPacket::AuthenClientAbort(reason.into());
             }
-            if pkt.user_msg.is_empty() {
+            if pkt.get_user_msg().is_none() || pkt.get_user_msg().is_some_and(|x|x.is_empty()) {
                 return SrvPacket::AuthenGenericError(Some("Server requested a password but none provided".into())); // We asked for a pass
             }
             cstate.authen_info.pass = Some(
-                SString(String::from_utf8_lossy(&pkt.user_msg).into())
+                SString(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into())
             );
-            let ret: AuthenReplyPacket =
+            let ret = unsafe {
                 if check_auth(&cstate.authen_info, cstate.addr.ip()) {
-                    AuthenReplyPacket {
-                        status: AuthenReplyStatus::PASS,
-                        flags: 0,
-                        serv_msg: "Authentication Pass".into(),
-                        data: Vec::with_capacity(0),
-                    }
+                    AuthenReplyPacket::new(
+                        AuthenReplyStatus::PASS,
+                        0,
+                        &Vec::from(b"Authentication Pass"),
+                        &Vec::with_capacity(0),
+                    )
                 }
                 else {
-                    AuthenReplyPacket {
-                        status: AuthenReplyStatus::FAIL,
-                        flags: 0,
-                        serv_msg: "Authentication Fail".into(),
-                        data: Vec::with_capacity(0),
-                    }
-                };
+                    AuthenReplyPacket::new(
+                        AuthenReplyStatus::FAIL,
+                        0,
+                        &Vec::from(b"Authentication Fail"),
+                        &Vec::with_capacity(0),
+                    )
+                }};
             return SrvPacket::AuthenReply(ret);
         },
     }
 }
 
 #[instrument]
-fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<AuthenContinuePacket, <AuthenContinuePacket as TryFrom<&[u8]>>::Error> {
-    let pkt = AuthenContinuePacket::try_from(data)?;
+fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<&AuthenContinuePacket, TacpErr> {
+
+    let pkt = AuthenContinuePacket::try_ref_from_bytes(data)?;
     if pkt.len() != expected_length {
         return Err(TacpErr::HeaderMismatch(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
     }
@@ -458,24 +459,24 @@ fn check_auth(info: &AuthenInfo, client: IpAddr) -> bool {
 }
 
 fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket {
-    if pkt.user.is_empty() {
-        let ret = AuthenReplyPacket {
-            status: AuthenReplyStatus::GETUSER,
-            flags: 0,
-            serv_msg: "Username required: ".into(),
-            data: Vec::with_capacity(0),
-        };
+    if pkt.get_user().is_none() {
+        let ret = unsafe { AuthenReplyPacket::new(
+            AuthenReplyStatus::GETUSER,
+            0,
+            &Vec::from(b"Username required: "),
+            &Vec::with_capacity(0),
+        )};
         cstate.authen_state = AuthenState::ASCIIGETUSER;
         return SrvPacket::AuthenReply(ret);
     }
-    cstate.authen_info.username = Some(String::from_utf8_lossy(&pkt.user).into());
+    cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user().unwrap()).into());
     if cstate.authen_info.pass.is_none() {
-        let ret = AuthenReplyPacket {
-            status: AuthenReplyStatus::GETPASS,
-            flags: 1 << REPLY_FLAG_NOECHO,
-            serv_msg: "Enter pass".into(),
-            data: Vec::with_capacity(0),
-        };
+        let ret = unsafe { AuthenReplyPacket::new(
+            AuthenReplyStatus::GETPASS,
+            1 << REPLY_FLAG_NOECHO,
+            &Vec::from(b"Enter pass"),
+            &Vec::with_capacity(0),
+        )};
         cstate.authen_state = AuthenState::ASCIIGETPASS;
         return SrvPacket::AuthenReply(ret);
     }
@@ -483,112 +484,117 @@ fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket
 }
 
 fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
-    if pkt.user.is_empty() {
-        let ret = AuthenReplyPacket {
-            status: AuthenReplyStatus::ERROR,
-            flags: 0,
-            serv_msg: "Failed to supply username".into(),
-            data: Vec::with_capacity(0),
-        };
+    if pkt.get_user().is_none() {
+        let ret = unsafe { AuthenReplyPacket::new(
+            AuthenReplyStatus::ERROR,
+            0,
+            &Vec::from(b"Failed to supply username"),
+            &Vec::with_capacity(0),
+        )};
         return SrvPacket::AuthenReply(ret);
     }
     let info = AuthenInfo {
-        username: Some(String::from_utf8_lossy(&pkt.user).into()),
-        pass: Some(SString(String::from_utf8_lossy(&pkt.data).into())),
+        username: Some(String::from_utf8_lossy(pkt.get_user().unwrap()).into()),
+        pass: Some(SString(String::from_utf8_lossy(pkt.get_data().unwrap_or_default()).into())),
     };
-    let ret =
+    let ret = unsafe {
         if check_auth(&info, cstate.addr.ip()) {
-            AuthenReplyPacket {
-                status: AuthenReplyStatus::PASS,
-                flags: 0,
-                serv_msg: "PAP Authentication PASS".into(),
-                data: Vec::with_capacity(0),
-            }
+            AuthenReplyPacket::new(
+                AuthenReplyStatus::PASS,
+                0,
+                &Vec::from(b"PAP Authentication PASS"),
+                &Vec::with_capacity(0),
+            )
         }
         else {
-            AuthenReplyPacket {
-                status: AuthenReplyStatus::FAIL,
-                flags: 0,
-                serv_msg: "PAP Authentication FAIL".into(),
-                data: Vec::with_capacity(0),
-            }
-        };
+            AuthenReplyPacket::new(
+                AuthenReplyStatus::FAIL,
+                0,
+                &Vec::from(b"PAP Authentication FAIL"),
+                &Vec::with_capacity(0),
+            )
+        }};
     return SrvPacket::AuthenReply(ret);
 }
 
 #[instrument]
 fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
-    let pkt = AuthorRequestPacket::try_from(packet.deref());
+    let pkt = AuthorRequestPacket::try_ref_from_bytes(&packet);
     if pkt.is_err() {
         return SrvPacket::AuthorGenericError(Some("Failed to parse".into()));
     }
     let pkt = pkt.unwrap();
-    if pkt.len != expected_length {
-        dbg!((pkt.len, expected_length));
+    if pkt.len() != expected_length {
+        dbg!((pkt.len(), expected_length));
         return SrvPacket::AuthorGenericError(Some("Packet length mismatch".into()));
     }
-    let cmd = pkt.args.iter().find_map(|x|{
-        if x.argument == "cmd" {
-            x.value.as_str()
+    let mut cmd = None;
+    for arg in pkt.iter_arg_copy().flatten() {
+        if arg.argument == "cmd" && arg.value.as_str().is_some() {
+            cmd = Some(arg);
+            break;
         }
-        else { None }
-    });
-    if cmd.is_none() {
-        return SrvPacket::AuthorReply(AuthorReplyPacket {
-            status: AuthorStatus::FAIL, // fixme; use reply
-            args: Vec::with_capacity(0),
-            server_msg: Vec::from("No cmd argument. Can not authorize!"),
-            data: Vec::with_capacity(0),
-        });
     }
-    let cmd = cmd.unwrap();
-    let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), cmd);
-    let ret = if res {
-        AuthorReplyPacket {
-            status: AuthorStatus::PASS_ADD,
-            args: Vec::with_capacity(0),
-            server_msg: "Approved".into(),
-            data: Vec::with_capacity(0),
-        }
+    if cmd.is_none() {
+        return unsafe { SrvPacket::AuthorReply(AuthorReplyPacket::new(
+            AuthorStatus::FAIL, // fixme; use reply
+            &Vec::with_capacity(0),
+            &Vec::from("No cmd argument. Can not authorize!"),
+            &Vec::with_capacity(0),
+        ))};
+    }
+    // Stupid lifetimes
+    let cmd = cmd.unwrap().value;
+    let cmd = cmd.as_str().unwrap();
+
+    let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), cmd);
+    let ret = unsafe { if res {
+        AuthorReplyPacket::new(
+            AuthorStatus::PASS_ADD,
+            &Vec::with_capacity(0),
+            &Vec::from(b"Approved"),
+            &Vec::with_capacity(0),
+        )
     }
     else {
-        AuthorReplyPacket {
-            status: AuthorStatus::FAIL,
-            args: Vec::with_capacity(0),
-            server_msg: "Denied".into(),
-            data: Vec::with_capacity(0),
-        }
-    };
+        AuthorReplyPacket::new(
+            AuthorStatus::FAIL,
+            &Vec::with_capacity(0),
+            &Vec::from(b"Denied"),
+            &Vec::with_capacity(0),
+        )
+    }};
     return SrvPacket::AuthorReply(ret);
 }
 
 #[instrument]
 async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
-    let pkt = AcctRequestPacket::try_from(packet.deref());
+    let pkt = AcctRequestPacket::try_ref_from_bytes(&packet);
+    // let pkt = AcctRequestPacket::try_from(packet.deref());
     if pkt.is_err() {
         return SrvPacket::AcctGenericError(Some("Failed to parse".into()));
     }
     let pkt = pkt.unwrap();
-    if pkt.len != expected_length {
-        dbg!((pkt.len, expected_length));
+    if pkt.len() != expected_length {
+        dbg!((pkt.len(), expected_length));
         return SrvPacket::AcctGenericError(Some("Length mismatch".into()));
     }
     // fixme, log string better
-    let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(&pkt.user), &format!("{pkt:?}")).await;
-    let ret = if x.is_ok() {
-        AcctReplyPacket {
-            status: AcctStatus::SUCCESS,
-            server_msg: "Ok".into(),
-            data: Vec::with_capacity(0),
-        }
+    let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), &format!("{pkt:?}")).await;
+    let ret = unsafe { if x.is_ok() {
+        AcctReplyPacket::new(
+            AcctStatus::SUCCESS,
+            &Vec::from(b"Ok"),
+            &Vec::with_capacity(0),
+        )
     }
     else {
         error!("{:?}", x.unwrap_err());
-        AcctReplyPacket {
-            status: AcctStatus::ERROR,
-            server_msg: "Failed".into(),
-            data: Vec::with_capacity(0)
-        }
-    };
+        AcctReplyPacket::new(
+            AcctStatus::ERROR,
+            &Vec::from(b"Failed"),
+            &Vec::with_capacity(0)
+        )
+    }};
     return SrvPacket::AcctReply(ret);
 }
