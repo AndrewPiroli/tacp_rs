@@ -3,7 +3,7 @@ name = "tacp"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
-license = "MIT OR Apache-2.0"
+license.workspace = true
 
 [dependencies]
 md5 = { package = "md-5", version = "~0.10.6", default-features = false }

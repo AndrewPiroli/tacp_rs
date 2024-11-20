@@ -1,18 +1,29 @@
-This is a toy, do not use !!!!
+# A TACACS+ Protocol Parser and Server.
 
-tacp/ - protocol definitions, encoders, and decoders. no_std, requires alloc. Permissive License (MIT/Apache)
+Current status: **Alpha**
 
-tacpd/ - reference server implementation. Copyleft license (GPL)
+Not recommended for production use (yet).
 
-TODO:
+My style is to avoid external dependencies when reasonable, I am not afraid of nightly features or using unsafe.
+
+## Main crate: tacp
+
+Contains the protocol definitions, a zero-copy parser/decoder, and an expiramental encoder. `no_std` always, but does require `alloc` and a nightly compiler.
+
+The encoding side of things is new and expiramental, so it is behind a feature flag (`dst-construct`) and all methods are marked unsafe.
+
+RFC Compliance Status: **Mostly compliant** - where it counts at least.
+
+ROADMAP:
 
   - [ ] Cool name
   - [x] Basic Protocol Implementation
-    - [x] Packet parsing and reply
+    - [x] Packet parsing
       - [x] "Encryption"
       - [x] Authentication
       - [x] Authorization
       - [x] Accounting
+    - [ ] Full RFC compliance
   - [ ] Documentation
     - [x] RFC info in comments
     - [ ] Make doc comments nice
@@ -20,42 +31,15 @@ TODO:
   - [ ] Polish things
     - [ ] Errors (handling, reporting)
     - [ ] Don't crash
-    - [ ] Config/policy validation
-  - [ ] Performance
-    - [ ] Benchmark performance
-      - [ ] Load generation (how?)
-    - [ ] Multi-threading
-    - [ ] Multi-processing / sharding
+    - [ ] Make `alloc` optional
+    - [x] "Zero-copy" parser
   - [ ] Security
-    - [ ] Secret storage
-    - [ ] Fuzzing (how?)
-    - [ ] Unsafe usage
-  - [ ] Policy
-    - [x] Clients
-    - [x] Users
-    - [x] Authorization
-    - [X] Authentication
-    - [X] Accounting
-    - [x] Groups
-  - [ ] Features
-     - [ ] Authentication
-       - [x] Basic Protocol stuff
-         - [x] Define users manually in policy file
-         - [x] ASCII
-         - [x] PAP
-         - [x] CHAP
-       - [ ] LDAP Proxying
-       - [ ] RADIUS Proxying
-       - [ ] Other external sources?
-       - [ ] Builtin 2 factor (TOTP?, HTOP?)
-    - [ ] Authorization
-      - [x] ACL type stuff in Policy
-      - [ ] What else?
-    - [ ] Accounting
-      - [x] Syslog (basic rfc5424 support)
-      - [x] File logging
-      - [ ] Graylog (?)
-      - [ ] Other ideas (?)
-  - [ ] Misc random ideas
-    - [ ] Some kind of embedded scripting language to do cool stuff ??
-    - [ ] Web UI ?
+    - [ ] Usage of unsafe
+    - [ ] Direct fuzzing
+
+## tacpd/ - The "reference" server implementation.
+
+Right now this is kind of a mess because it's living as an undifferentiated zygote.
+Some of the things it has only make sense in a production TACACS+ server,
+but right now it's really only useful as a test-wrapper of the `tacp` crate. At some point in the future, this crate
+will commit to one of those 2 goals and a new server will be written to fufill the other one.
