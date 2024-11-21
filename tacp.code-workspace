@@ -1,0 +1,36 @@
+{
+	"folders": [
+		{
+			"path": ".",
+			"name": "root",
+		},
+		{
+			"path": "./tacp",
+			"name": "core"
+		},
+		{
+			"path": "./tacpd",
+			"name": "server"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.hg": true,
+			"**/CVS": true,
+			"**/.DS_Store": true,
+			"**/Thumbs.db": true,
+			"**/*.bin": true,
+			"**/target": true,
+		},
+		"debug.allowBreakpointsEverywhere": true,
+		"rust-analyzer.cargo.features": ["dst-construct"]
+	},
+	"launch":
+	{
+		"version": "0.2.0",
+		"configurations": [
+		]
+	}
+}
