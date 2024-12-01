@@ -14,7 +14,6 @@ use fnv::FnvHashMap;
 use std::sync::OnceLock;
 use std::ops::Deref;
 use tracing::{error, info, instrument, debug};
-use zerocopy::*;
 use zerocopy::byteorder::network_endian::U32;
 
 mod policy;

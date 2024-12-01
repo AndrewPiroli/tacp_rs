@@ -13,6 +13,7 @@ use argvalpair::ArgValPairCopyIter;
 use zerocopy::*;
 use zerocopy::byteorder::network_endian::{U32, U16};
 use zerocopy_derive::*;
+pub use zerocopy::{IntoBytes, TryFromBytes, FromBytes};
 
 pub mod obfuscation;
 pub mod argvalpair;
@@ -117,6 +118,17 @@ pub struct PacketHeader {
     pub flags: Flags,
     pub session_id: SessionID,
     pub length: PacketLength,
+}
+
+impl PacketHeader {
+    pub fn new(version: Version, ty: PacketType, seq_no: SeqNo, flags: Flags, session_id: u32, length: u32) -> Self {
+        Self { version, ty, seq_no, flags, session_id: U32::new(session_id), length: U32::new(length) }
+    }
+    // Is this better or worse than re-exporting byteorder?
+    // I feel like it's worse since byteorder is tiny and easy to understand.
+    pub fn set_len_ne(&mut self, length: u32) {
+        self.length = U32::new(length);
+    }
 }
 
 /**
