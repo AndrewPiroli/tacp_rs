@@ -43,3 +43,9 @@ Right now this is kind of a mess because it's living as an undifferentiated zygo
 Some of the things it has only make sense in a production TACACS+ server,
 but right now it's really only useful as a test-wrapper of the `tacp` crate. At some point in the future, this crate
 will commit to one of those 2 goals and a new server will be written to fufill the other one.
+
+
+## test\_client/ - A basic testing client
+
+A basic client that can make TACACS+ requests to a server.
+
