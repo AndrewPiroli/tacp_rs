@@ -358,8 +358,6 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
     use zerocopy::*;
     assert!(header.seq_no % 2 == 0); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
-    dbg!(&header);
-    dbg!(obfuscated_body.len(), header.length.get());
     let mut reply = Vec::with_capacity(header.length.get() as usize);
     reply.resize(12, 0);
     header.write_to_prefix(&mut reply).unwrap();
