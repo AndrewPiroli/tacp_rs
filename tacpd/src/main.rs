@@ -205,6 +205,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 "Missed packet or malicious client. Sequence number incremented by more than 1");
             break;
         }
+        cstate.seq_no = parsed_header.seq_no;
         debug!(?parsed_header);
         let mut packet: SmallVec<PacketBuf> = SmallVec::with_capacity(parsed_header.length.get() as usize);
         packet.resize_with(parsed_header.length.get() as usize, Default::default);
