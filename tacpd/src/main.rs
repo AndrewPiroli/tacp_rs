@@ -183,6 +183,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             if let Some(cs) = gs.0.get(&parsed_header.session_id) {
                 cstate = cs.clone();
             } else {
+                assert!(parsed_header.seq_no == 1);
                 cstate = Client {
                     addr,
                     session: parsed_header.session_id,
@@ -197,6 +198,11 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         if addr != cstate.addr || parsed_header.seq_no < cstate.seq_no {
             error!(state_addr = ?cstate.addr, our_seq = ?parsed_header.seq_no, state_seq = ?cstate.seq_no,
                 "Internal consistency error. Malicious client or stale entry in global state");
+            break;
+        }
+        if (parsed_header.seq_no - 1 != cstate.seq_no) && !(cstate.seq_no == 1 && parsed_header.seq_no == 1) {
+            error!(state_addr = ?cstate.addr, our_seq = ?parsed_header.seq_no, state_seq = ?cstate.seq_no,
+                "Missed packet or malicious client. Sequence number incremented by more than 1");
             break;
         }
         debug!(?parsed_header);
