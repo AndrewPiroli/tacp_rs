@@ -298,6 +298,7 @@ impl AuthenStartPacket {
         copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as u8 as usize);
         varidata_ptr += rem_addr.len() as u8 as usize;
         copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len() as u8 as usize);
+        varidata_ptr += data.len() as u8 as usize;
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }}
