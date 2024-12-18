@@ -7,13 +7,13 @@ license.workspace = true
 
 [dependencies]
 tacp = { path = "../tacp", features = ["dst-construct"] }
-tokio = { version = "~1.33.0", default-features = false, features = ["net", "rt", "io-util", "fs"] }
-hexdump = "0.1.1"
-smallvec = { version = "~1.11.2", default-features = false, features = ["write", "union"] }
+tokio = { version = "~1.42.0", default-features = false, features = ["net", "rt", "io-util", "fs"] }
+hexdump = { version = "~0.1.2", default-features = false }
+smallvec = { version = "~1.13.2", default-features = false, features = ["write", "union"] }
 fnv = { version = "~1.0.7", default-features = false, features = ["std"] }
 yaml = { package = "strict-yaml-rust", version = "~0.1.2", default-features = false }
-tracing = { version = "~0.1.40", default-features = false, features = ["attributes", "std", "tracing-attributes", "release_max_level_info"] }
-tracing-subscriber = { version = "~0.3.18", default-features = false, features = ["alloc", "ansi", "fmt", "nu-ansi-term", "registry", "sharded-slab", "smallvec", "std", "thread_local", "env-filter"] }
-regex = { version = "~1.10.4", default-features = false, features = ["std", "perf", "unicode"] }
+tracing = { version = "~0.1.41", default-features = false, features = ["attributes", "std", "tracing-attributes", "release_max_level_info"] }
+tracing-subscriber = { version = "~0.3.19", default-features = false, features = ["alloc", "ansi", "fmt", "nu-ansi-term", "registry", "sharded-slab", "smallvec", "std", "thread_local", "env-filter"] }
+regex = { version = "~1.11.1", default-features = false, features = ["std", "perf", "unicode"] }
 syslog_fmt = { version = "~0.3.2", default-features = false, features = ["chrono"] }
-zerocopy = { version = "~0.8.8", default-features = false }
+zerocopy = { version = "~0.8.13", default-features = false }
