@@ -11,6 +11,10 @@
 		{
 			"path": "./tacpd",
 			"name": "server"
+		},
+		{
+			"path": "./test_client",
+			"name": "client"
 		}
 	],
 	"settings": {
