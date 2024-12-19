@@ -170,10 +170,21 @@ fn main() {
                             util::hexdump(data);
                             println!();
                         }
-                        println!("Server requests data!");
-                        let data = rpassword::prompt_password("Enter Data for reply (noecho): ").unwrap();
+                        println!("Server requests \"data!\"");
+                        use tacp::REPLY_FLAG_NOECHO;
+                        let user_msg = match recv_parsed.flags & 1 << REPLY_FLAG_NOECHO == 1 {
+                            true => rpassword::prompt_password("Enter Data for reply (noecho): ").unwrap(),
+                            false => {
+                                print!("Enter data for reply: ");
+                                std::io::stdout().flush().unwrap();
+                                let mut msg = String::new();
+                                std::io::stdin().read_line(&mut msg).unwrap();
+                                msg = msg.trim().to_string();
+                                msg
+                            }
+                        };
                         let mut reply_body = unsafe {
-                            AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, data.as_bytes(), blank.as_bytes()))
+                            AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, user_msg.as_bytes(), blank.as_bytes()))
                         };
                         let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, 0, session_id, reply_body.len() as u32);
                         util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header: reply_header });
