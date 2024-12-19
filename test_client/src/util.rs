@@ -63,3 +63,17 @@ pub fn recv_packet(s: &mut TcpStream) -> anyhow::Result<(PacketHeader, Box<[u8]>
     s.read_exact(&mut ret)?;
     Ok((header, ret.into_boxed_slice()))
 }
+
+pub fn prompt_user_input(prompt: &str, noecho: bool) -> String {
+    match noecho {
+        true => rpassword::prompt_password(prompt).unwrap(),
+        false => {
+            let mut ret = String::new();
+            print!("{prompt}");
+            std::io::stdout().flush().unwrap();
+            std::io::stdin().read_line(&mut ret).unwrap();
+            ret = ret.trim().to_string();
+            ret
+        }
+    }
+}
