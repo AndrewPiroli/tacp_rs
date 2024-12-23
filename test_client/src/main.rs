@@ -1,4 +1,5 @@
 mod util;
+use argvalpair::ArgValPair;
 use util::SupportedEncryption;
 
 use clap::{Parser, Subcommand};
@@ -11,19 +12,28 @@ const DEFAULT_PORT: u16 = 49;
 enum NextPacket {
     None,
     AuthenReply,
+    AuthorReply,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Subcommand)]
 enum Action {
     AsciiLogin { username: Option<String> },
     PAPLogin { username: String, password: Option<String> },
+    Authorize {
+        #[arg(short, long)]
+        username: String,
+        #[arg(short, long, default_value_t = 15, value_parser = clap::value_parser!(u8).range(0..=15))]
+        level: u8,
+        #[arg(num_args(0..))]
+        av_pair: Option<Vec<String>>
+    },
 }
 
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(short, long)]
     server: String,
-    #[arg(short, long, default_value_t = DEFAULT_PORT)]
+    #[arg(short, long, default_value_t = DEFAULT_PORT, value_parser = clap::value_parser!(u16).range(1..))]
     port: u16,
     #[arg(short, long)]
     key: String,
@@ -81,6 +91,32 @@ fn main() {
             expected_reply = NextPacket::AuthenReply;
             body
         },
+        Action::Authorize { username, level, av_pair } => {
+            let arg_val_pairs = match av_pair {
+                Some(avp) => {
+                    let parsed: Vec<Vec<u8>> = avp.iter().filter_map(|xx|{
+                        let av_pair = ArgValPair::try_from(xx);
+                        if let Ok(yy) = av_pair {
+                            Some(yy.to_bytes())
+                        }
+                        else {
+                            None
+                        }
+                    }).collect();
+                    parsed
+                },
+                None => Vec::with_capacity(0),
+            };
+            // this api needs work
+            let sliced: Vec<&[u8]> = arg_val_pairs.iter().map(Vec::as_slice).collect();
+            let body = unsafe {
+                AuthorRequestPacket::boxed_to_bytes(AuthorRequestPacket::new(AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced))
+            };
+            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHOR, seq_no, 0, session_id,body.len() as u32);
+            seq_no += 1;
+            expected_reply = NextPacket::AuthorReply;
+            body
+        }
     };
     util::encrypt(&mut pkt_bytes, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header: header });
     let pkt = util::alloc_pkt(header, &pkt_bytes);
@@ -106,6 +142,7 @@ fn main() {
                 }
                 handle_authen_reply(recv_parsed.unwrap(), &mut expected_reply, &mut stream, &mut seq_no, session_id, args.key.as_bytes());
             },
+            NextPacket::AuthorReply => { todo!() },
             NextPacket::None => unreachable!(),
         }
     }
