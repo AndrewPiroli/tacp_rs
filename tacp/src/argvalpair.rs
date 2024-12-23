@@ -70,10 +70,10 @@ pub struct ArgValPair {
     pub optional: bool,
 }
 
-impl TryFrom<String> for ArgValPair {
+impl TryFrom<&str> for ArgValPair {
     type Error = super::TacpErr;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some(seplen) = value.find('=') {
             let (arg, mut val) = value.split_at(seplen);
             // remove separator
@@ -110,6 +110,15 @@ impl TryFrom<String> for ArgValPair {
         Err(super::TacpErr::ParseError("No valid separator ('=' or '*') found!".to_owned()))
     }
 }
+
+impl TryFrom<&String> for ArgValPair {
+    type Error = TacpErr;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
+
 impl ArgValPair {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::with_capacity(256);
@@ -159,7 +168,7 @@ impl Iterator for ArgValPairCopyIter<'_> {
             let ret = String::from_utf8_lossy(&self.data[self.data_idx..new_idx]).into_owned();
             self.data_idx = new_idx;
             self.current += 1;
-            return Some(ArgValPair::try_from(ret));
+            return Some(ArgValPair::try_from(&ret));
         }
         None
     }
