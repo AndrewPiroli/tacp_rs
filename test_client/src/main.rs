@@ -142,7 +142,44 @@ fn main() {
                 }
                 handle_authen_reply(recv_parsed.unwrap(), &mut expected_reply, &mut stream, &mut seq_no, session_id, args.key.as_bytes());
             },
-            NextPacket::AuthorReply => { todo!() },
+            NextPacket::AuthorReply => {
+                let recv_parsed = AuthorReplyPacket::try_ref_from_bytes(&recv_body);
+                if recv_parsed.is_err() {
+                    eprintln!("err {:?}", recv_parsed.unwrap_err());
+                    util::hexdump(&recv_body);
+                    break;
+                }
+                let parsed = recv_parsed.unwrap();
+                println!("Server sent status: {}",
+                    match parsed.status {
+                        AuthorStatus::PASS_ADD => "Authorization Success (as-is)",
+                        AuthorStatus::PASS_REPL => "Authorization Success (with modifications, see arg-val pairs)",
+                        AuthorStatus::FAIL => "Authorization Failed",
+                        AuthorStatus::ERROR => "Error during authorization",
+                        AuthorStatus::FOLLOW => "Follow :/ (deprecated response)",
+                });
+                if let Some(server_msg) = parsed.get_serv_msg() {
+                    println!("Server sent message: {}",
+                        String::from_utf8_lossy(server_msg)
+                    );
+                }
+                if let Some(data) = parsed.get_data() {
+                    println!("Server sent data:");
+                    util::hexdump(data);
+                }
+                for avp in parsed.iter_arg_copy(){
+                    match avp {
+                        Ok(avp) => {
+                            let sep = if avp.optional {"*"} else {"="};
+                            println!("Server ArgValPair: {}{sep}{:?}", avp.argument, avp.value);
+                        },
+                        Err(err) => {
+                            println!("Server sent argvalpair that failed to parse: {:?}", err);
+                        },
+                    }
+                }
+                break;
+            },
             NextPacket::None => unreachable!(),
         }
     }
