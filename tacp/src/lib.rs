@@ -725,7 +725,7 @@ impl AuthorRequestPacket {
         use core::ptr::copy_nonoverlapping;
         let len = mem.1;
         let mem = mem.0;
-        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::ParseError("Fixme".to_owned()));
         }
@@ -759,7 +759,7 @@ impl AuthorRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
         use core::alloc::*;
-        let len = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
         let ptr = alloc::alloc::alloc(layout);
         if ptr.is_null() {
@@ -878,7 +878,7 @@ impl AuthorReplyPacket {
         use core::ptr::copy_nonoverlapping;
         let len = mem.1;
         let mem = mem.0;
-        let required_mem = 6 + server_msg.len() + data.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::ParseError("FIXME".to_owned()));
         }
@@ -912,7 +912,7 @@ impl AuthorReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
         use core::alloc::*;
-        let len = 6 + server_msg.len() + data.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
         let ptr = alloc::alloc::alloc(layout);
         if ptr.is_null() {
@@ -1029,7 +1029,7 @@ impl AcctRequestPacket {
     pub unsafe fn initialize(mem: (*mut u8, usize), flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
         let len = mem.1;
         let mem = mem.0;
-        let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::ParseError("FIXME".to_owned()));
         }
@@ -1039,7 +1039,7 @@ impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
         use core::alloc::*;
-        let len = 8 + user.len() + port.len() + rem_addr.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
         let ptr = alloc::alloc::alloc(layout);
         if ptr.is_null() {
