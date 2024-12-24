@@ -1039,7 +1039,7 @@ impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
         use core::alloc::*;
-        let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
         let ptr = alloc::alloc::alloc(layout);
         if ptr.is_null() {
