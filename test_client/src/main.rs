@@ -13,6 +13,7 @@ enum NextPacket {
     None,
     AuthenReply,
     AuthorReply,
+    AcctReply,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Subcommand)]
@@ -27,6 +28,14 @@ enum Action {
         #[arg(num_args(0..))]
         av_pair: Option<Vec<String>>
     },
+    Account {
+        #[arg(short, long)]
+        username: String,
+        #[arg(short, long, default_value_t = 15, value_parser = clap::value_parser!(u8).range(0..=15))]
+        level: u8,
+        #[arg(num_args(0..))]
+        av_pair: Option<Vec<String>>
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -116,6 +125,32 @@ fn main() {
             seq_no += 1;
             expected_reply = NextPacket::AuthorReply;
             body
+        },
+        Action::Account { username, level, av_pair } => {
+            let arg_val_pairs = match av_pair {
+                Some(avp) => {
+                    let parsed: Vec<Vec<u8>> = avp.iter().filter_map(|xx|{
+                        let av_pair = ArgValPair::try_from(xx);
+                        if let Ok(yy) = av_pair {
+                            Some(yy.to_bytes())
+                        }
+                        else {
+                            None
+                        }
+                    }).collect();
+                    parsed
+                },
+                None => Vec::with_capacity(0),
+            };
+            // this api needs work
+            let sliced: Vec<&[u8]> = arg_val_pairs.iter().map(Vec::as_slice).collect();
+            let body = unsafe {
+                AcctRequestPacket::boxed_to_bytes(AcctRequestPacket::new(AcctFlags::RecordStop, AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced))
+            };
+            header = PacketHeader::new(Version::VersionDefault, PacketType::ACCT, seq_no, 0, session_id, body.len() as u32);
+            seq_no += 1;
+            expected_reply = NextPacket::AcctReply;
+            body
         }
     };
     util::encrypt(&mut pkt_bytes, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header: header });
@@ -179,6 +214,27 @@ fn main() {
                     }
                 }
                 break;
+            },
+            NextPacket::AcctReply => {
+                let recv_parsed = AcctReplyPacket::try_ref_from_bytes(&recv_body);
+                if recv_parsed.is_err() {
+                    eprintln!("err {:?}", recv_parsed.unwrap_err());
+                    util::hexdump(&recv_body);
+                    break;
+                }
+                let parsed = recv_parsed.unwrap();
+                match parsed.status {
+                    AcctStatus::SUCCESS => println!("Accouting Success"),
+                    AcctStatus::ERROR => println!("Accounting Error"),
+                }
+                if let Some(msg) = parsed.get_serv_msg() {
+                    println!("Server sent message: {}", String::from_utf8_lossy(msg));
+                }
+                if let Some(data) = parsed.get_data() {
+                    println!("Server sent data:");
+                    util::hexdump(data);
+                }
+                expected_reply = NextPacket::None;
             },
             NextPacket::None => unreachable!(),
         }
