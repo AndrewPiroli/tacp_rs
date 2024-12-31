@@ -6,9 +6,9 @@ use regex::Regex;
 use super::*;
 
 #[instrument]
-pub(crate) fn load() -> Result<Policy, Box<dyn Error>>{
+pub(crate) fn load(policy_str: &str) -> Result<Policy, Box<dyn Error>>{
     let mut ret: Policy = Default::default();
-    let mut policy_file = StrictYamlLoader::load_from_str(&std::fs::read_to_string("policy.yaml")?)?;
+    let mut policy_file = StrictYamlLoader::load_from_str(policy_str)?;
     if policy_file.is_empty() {
         error!("Policy parsed ok but is empty.");
         let ret = Box::new(TacpErr::ParseError("Policy Parsed ok but is empty".to_owned()));

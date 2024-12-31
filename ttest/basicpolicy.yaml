@@ -1,0 +1,21 @@
+global:
+  block-unconfigured: true
+  bind-addr: 0.0.0.0
+  bind-port: 9999
+clients:
+  127.0.0.1:
+    key: b
+users:
+  test:
+    password: test
+    groups: testgrp
+groups:
+  testgrp:
+    author_policy: |
+      default allow
+      deny test-deny-string
+    authen_policy:
+      type: local
+      list: |
+        default deny
+        permit user test

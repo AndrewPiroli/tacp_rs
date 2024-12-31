@@ -1,5 +1,5 @@
 [workspace]
-members = ["tacp", "tacpd", "test_client"]
+members = ["tacp", "tserver", "tclient", "ttest"]
 resolver = "2"
 
 [workspace.package]

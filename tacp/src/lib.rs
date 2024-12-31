@@ -1,6 +1,6 @@
 #![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(error_in_core, ptr_metadata)]
+#![feature(ptr_metadata)]
 #![no_std]
 extern crate alloc;
 

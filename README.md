@@ -27,25 +27,28 @@ ROADMAP:
   - [ ] Documentation
     - [x] RFC info in comments
     - [ ] Make doc comments nice
-    - [ ] Document policy file
   - [ ] Polish things
     - [ ] Errors (handling, reporting)
     - [ ] Don't crash
-    - [ ] Make `alloc` optional
+    - [ ] Make `alloc` optional (other option: allocator API?)
     - [x] "Zero-copy" parser
   - [ ] Security
     - [ ] Usage of unsafe
     - [ ] Direct fuzzing
 
-## tacpd/ - The "reference" server implementation.
+## tserver - Basic testing server
 
-Right now this is kind of a mess because it's living as an undifferentiated zygote.
-Some of the things it has only make sense in a production TACACS+ server,
-but right now it's really only useful as a test-wrapper of the `tacp` crate. At some point in the future, this crate
-will commit to one of those 2 goals and a new server will be written to fufill the other one.
+A TACACS+ server with enough features to test most client operations.
 
+## tclient - Basic testing client
 
-## test\_client/ - A basic testing client
+A basic TACACS+ client that can make requests to a server.
 
-A basic client that can make TACACS+ requests to a server.
+## ttest - A WIP testing system
 
+Currently runs the test client and server against each other.
+
+Other projects we can test interop with in the future:
+
+ * https://github.com/ansible/tacacs_plus
+ * https://github.com/AuthScaffold/tacacs-rs

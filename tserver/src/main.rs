@@ -1,9 +1,9 @@
-#![feature(error_in_core, let_chains)]
+#![feature(let_chains)]
 #![allow(stable_features)]
 #![allow(clippy::needless_return, clippy::upper_case_acronyms, clippy::single_match)]
 #![deny(clippy::await_holding_lock)]
 use std::net::{IpAddr, ToSocketAddrs};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use policy::{ClientPolicy, Policy};
 use tacp::*;
 use tacp::obfuscation::obfuscate_in_place;
@@ -11,12 +11,12 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::io::*;
 use smallvec::*;
 use fnv::FnvHashMap;
-use std::sync::OnceLock;
 use std::ops::Deref;
 use tracing::{error, info, instrument, debug};
 use zerocopy::byteorder::network_endian::U32;
 
 mod policy;
+mod testsupport;
 type PacketBuf = [u8;256];
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -107,11 +107,25 @@ struct ServerState(FnvHashMap<SessionID, Client>);
 static GLOBAL_STATE: OnceLock<Mutex<ServerState>> = OnceLock::new();
 /// Application wide instance of the policy
 static POLICY: OnceLock<Policy> = OnceLock::new();
+/// HTTP endpoint for testing
+static TEST_MODE: OnceLock<String> = OnceLock::new();
 
 fn main() {
     tracing_subscriber::fmt::init();
     GLOBAL_STATE.set(Default::default()).unwrap();
-    match policy::parse::load() {
+    let policy_file_str = if let Ok(addr) = std::env::var("TACP_SERVER_TEST") {
+        TEST_MODE.set(addr.clone()).unwrap();
+        testsupport::getpolicy_blocking(&format!("http://{addr}/server_policy"))
+    }
+    else {
+        let f = std::env::var("TACP_SERVER_POLICY_FILE").unwrap_or("policy.yaml".to_owned());
+        let policy_file = std::fs::read_to_string(&f);
+        if let Err(e) = policy_file {
+            panic!("Failed to read policy file: {f}\n{e:?}");
+        }
+        policy_file.unwrap()
+    };
+    match policy::parse::load(&    policy_file_str) {
         Ok(pol) => {
             POLICY.set(pol).unwrap();
         },
@@ -120,7 +134,7 @@ fn main() {
             return;
         },
     }
-    let rt = tokio::runtime::Builder::new_current_thread().enable_io().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread().enable_io().enable_time().build().unwrap();
     rt.block_on(async {
         let bind_info = POLICY.get().unwrap().bind_info.to_socket_addrs().unwrap().next().unwrap();
         let s = TcpListener::bind(bind_info).await.unwrap();
@@ -214,8 +228,8 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
         }
         obfuscate_in_place(parsed_header, key.as_bytes(), &mut packet);
         let reply = match parsed_header.ty {
-            PacketType::AUTHEN => handle_authen_packet(parsed_header.length.get() as usize, packet, &mut cstate),
-            PacketType::AUTHOR => handle_author_packet(parsed_header.length.get() as usize, packet, &mut cstate),
+            PacketType::AUTHEN => handle_authen_packet(parsed_header.length.get() as usize, packet, &mut cstate).await,
+            PacketType::AUTHOR => handle_author_packet(parsed_header.length.get() as usize, packet, &mut cstate).await,
             PacketType::ACCT   => handle_acct_packet(parsed_header.length.get() as usize, packet, &mut cstate).await,
         };
         let mut terminate_session = false;
@@ -366,7 +380,7 @@ async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_bod
 }
 
 #[instrument]
-fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
+async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     hexdump::hexdump(&packet);
     match cstate.authen_state {
         AuthenState::None => { // We have nothing so far, so this is a AUTHEN START packet
@@ -383,8 +397,8 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                 return SrvPacket::AuthenGenericError(Some("pkt len does not match header len".into()));
             }
             match pkt.authen_type {
-                AuthenType::ASCII => return authen_start_ascii(pkt, cstate),
-                AuthenType::PAP => return authen_start_pap(pkt, cstate),
+                AuthenType::ASCII => return authen_start_ascii(pkt, cstate).await,
+                AuthenType::PAP => return authen_start_pap(pkt, cstate).await,
                 AuthenType::CHAP |
                 AuthenType::MSCHAP_V1 |
                 AuthenType::MSCHAP_V2 => return SrvPacket::AuthenGenericError(Some("This server does not implement CHAP".into())),
@@ -422,6 +436,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             );
             let ret = unsafe {
                 if check_auth(&cstate.authen_info, cstate.addr.ip()) {
+                    testsupport::report(PacketType::AUTHEN, true, &cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::PASS,
                         0,
@@ -430,6 +445,7 @@ fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
                     )
                 }
                 else {
+                    testsupport::report(PacketType::AUTHEN, false, &cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::FAIL,
                         0,
@@ -462,7 +478,7 @@ fn check_auth(info: &AuthenInfo, client: IpAddr) -> bool {
     policy::enforce::authenticate(policy, client, user, pass)
 }
 
-fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket {
+async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket {
     if pkt.get_user().is_none() {
         let ret = unsafe { AuthenReplyPacket::new(
             AuthenReplyStatus::GETUSER,
@@ -487,7 +503,7 @@ fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket
     return SrvPacket::AuthenGenericError(None);
 }
 
-fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
+async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
     if pkt.get_user().is_none() {
         let ret = unsafe { AuthenReplyPacket::new(
             AuthenReplyStatus::ERROR,
@@ -503,6 +519,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
     };
     let ret = unsafe {
         if check_auth(&info, cstate.addr.ip()) {
+            testsupport::report(PacketType::AUTHEN, true, info.username.as_ref().unwrap(), "").await;
             AuthenReplyPacket::new(
                 AuthenReplyStatus::PASS,
                 0,
@@ -511,6 +528,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
             )
         }
         else {
+            testsupport::report(PacketType::AUTHEN, false, info.username.as_ref().unwrap(), "").await;
             AuthenReplyPacket::new(
                 AuthenReplyStatus::FAIL,
                 0,
@@ -522,7 +540,7 @@ fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
 }
 
 #[instrument]
-fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
+async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
     let pkt = AuthorRequestPacket::try_ref_from_bytes(&packet);
     if pkt.is_err() {
         return SrvPacket::AuthorGenericError(Some("Failed to parse".into()));
@@ -539,7 +557,11 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
             break;
         }
     }
+    // reporting
+    let user = pkt.get_user().unwrap_or(&[]);
+    let user = String::from_utf8_lossy(user).into_owned();
     if cmd.is_none() {
+        testsupport::report(tacp::PacketType::AUTHOR, false, &user, "No Command AV Pair").await;
         return unsafe { SrvPacket::AuthorReply(AuthorReplyPacket::new(
             AuthorStatus::FAIL, // fixme; use reply
             &Vec::with_capacity(0),
@@ -553,6 +575,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
 
     let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), cmd);
     let ret = unsafe { if res {
+        testsupport::report(tacp::PacketType::AUTHOR, true, &user, "").await;
         AuthorReplyPacket::new(
             AuthorStatus::PASS_ADD,
             &Vec::with_capacity(0),
@@ -561,6 +584,7 @@ fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cst
         )
     }
     else {
+        testsupport::report(tacp::PacketType::AUTHOR, false, &user, "").await;
         AuthorReplyPacket::new(
             AuthorStatus::FAIL,
             &Vec::with_capacity(0),
@@ -583,22 +607,37 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
         dbg!((pkt.len(), expected_length));
         return SrvPacket::AcctGenericError(Some("Length mismatch".into()));
     }
-    // fixme, log string better
-    let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), &format!("{pkt:?}")).await;
-    let ret = unsafe { if x.is_ok() {
-        AcctReplyPacket::new(
-            AcctStatus::SUCCESS,
-            &Vec::from(b"Ok"),
-            &Vec::with_capacity(0),
-        )
+    let user = pkt.get_user().unwrap_or(&[]);
+    let user = String::from_utf8_lossy(user).into_owned();
+    let ret;
+    { // scoped because Box<dyn ...> ruins async
+        // fixme, log string better
+        let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), &format!("{pkt:?}")).await;
+        ret = match x {
+            Ok(_) => {
+                unsafe { AcctReplyPacket::new(
+                    AcctStatus::SUCCESS,
+                    &Vec::from(b"Ok"),
+                    &Vec::with_capacity(0),
+                ) }
+            },
+            Err(ref e) => {
+                error!("{e:?}");
+                unsafe { AcctReplyPacket::new(
+                    AcctStatus::ERROR,
+                    &Vec::from(b"Failed"),
+                    &Vec::with_capacity(0)
+                    )}
+            }
+        };
     }
-    else {
-        error!("{:?}", x.unwrap_err());
-        AcctReplyPacket::new(
-            AcctStatus::ERROR,
-            &Vec::from(b"Failed"),
-            &Vec::with_capacity(0)
-        )
-    }};
+    match ret.status {
+        AcctStatus::SUCCESS => {
+            testsupport::report(tacp::PacketType::ACCT, true, &user, "").await;
+        },
+        AcctStatus::ERROR => {
+            testsupport::report(tacp::PacketType::ACCT, false, &user, "").await;
+        },
+    }
     return SrvPacket::AcctReply(ret);
 }

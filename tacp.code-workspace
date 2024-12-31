@@ -9,12 +9,16 @@
 			"name": "core"
 		},
 		{
-			"path": "./tacpd",
+			"path": "./tserver",
 			"name": "server"
 		},
 		{
-			"path": "./test_client",
+			"path": "./tclient",
 			"name": "client"
+		},
+		{
+			"path": "./ttest",
+			"name": "testing"
 		}
 	],
 	"settings": {
@@ -29,7 +33,8 @@
 			"**/target": true,
 		},
 		"debug.allowBreakpointsEverywhere": true,
-		"rust-analyzer.cargo.features": ["dst-construct"]
+		"rust-analyzer.cargo.features": ["dst-construct"],
+		"terminal.integrated.cwd": "${workspaceFolder}"
 	},
 	"launch":
 	{

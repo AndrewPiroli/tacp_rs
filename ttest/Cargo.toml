@@ -1,0 +1,14 @@
+[package]
+name = "ttest"
+version = "0.0.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axum = { version = "~0.8.3", default-features = false, features = ["http1", "json", "tokio", "macros"] }
+escargot = { version = "~0.5.13", default-features = false }
+tokio = { version = "~1.42.0", default-features = false, features = ["net", "rt", "io-util", "fs"] }
+serde = { version = "~1.0.219", default-features = false, features = ["derive"] }
+axum-extra = { version = "~0.10.1", default-features = false, features = [] }
+# which = "7.0.2"
