@@ -46,7 +46,9 @@ A basic TACACS+ client that can make requests to a server.
 
 ## ttest - A WIP testing system
 
-Currently runs the test client and server against each other.
+Current features:
+ - runs the test client and server against each other.
+ - Reads pcap files from the pcap directory and ensures all TACACS+ packets within can be parsed.
 
 Other projects we can test interop with in the future:
 
