@@ -8,6 +8,7 @@ use ipc::{start_webserver, CurrentPolicy, HeardFromServer, Info, ListenAddr, Rec
 use crate::process::*;
 mod process;
 mod ipc;
+mod pcap;
 
 macro_rules! runtest {
     ($name:literal, $fn:ident, $stream:ident) => {
@@ -19,10 +20,18 @@ macro_rules! runtest {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    *CurrentPolicy.write().unwrap() = include_str!("../basicpolicy.yaml").to_owned();
+    // Start web server in the background while we do pcap stuff
     start_webserver();
+    if pcap::check_pcap() {
+        println!("PCAP Replay Test - PASS");
+    }
+    else {
+        println!("PCAP Replay Test - FAIL");
+    }
+    // Back to client server testing stuff
+    *CurrentPolicy.write().unwrap() = include_str!("../basicpolicy.yaml").to_owned();
     while let None = ListenAddr.get() {}
-    let addr = dbg!(ListenAddr.get().unwrap());
+    let addr = ListenAddr.get().unwrap();
     let _s = launch_server_with_test_mode(addr);
     let mut tries = 10;
     loop {
