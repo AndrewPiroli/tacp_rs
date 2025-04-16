@@ -1,6 +1,6 @@
 #![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(ptr_metadata)]
+#![feature(ptr_metadata, allocator_api)]
 #![no_std]
 extern crate alloc;
 
@@ -8,6 +8,7 @@ use alloc::borrow::ToOwned;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::alloc::Allocator;
 use argvalpair::ArgValPairCopyIter;
 
 use zerocopy::*;
@@ -270,10 +271,10 @@ impl AuthenStartPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -310,19 +311,20 @@ impl AuthenStartPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self, A> {unsafe {
         use core::alloc::*;
         let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+        Self::new_in(alloc::alloc::Global, action, priv_level, authen_type, authen_service, user, port, rem_addr, data)
     }}
 }
 
@@ -405,10 +407,10 @@ impl AuthenReplyPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -443,19 +445,20 @@ impl AuthenReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
         use core::alloc::*;
         let len = 6 + serv_msg.len() + data.len();
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, flags, serv_msg, data).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        Self::new_in(alloc::alloc::Global, status, flags, serv_msg, data)
     }}
 }
 
@@ -520,10 +523,10 @@ impl AuthenContinuePacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -557,19 +560,20 @@ impl AuthenContinuePacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self, A> {unsafe {
         use core::alloc::*;
         let len = 5 + user_msg.len() + data.len();
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, user_msg, data).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+        Self::new_in(alloc::alloc::Global, flags, user_msg, data)
     }}
 }
 
@@ -710,10 +714,10 @@ impl AuthorRequestPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -757,19 +761,20 @@ impl AuthorRequestPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self, A> {unsafe {
         use core::alloc::*;
         let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+        Self::new_in(alloc::alloc::Global, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
 }
 
@@ -863,10 +868,10 @@ impl AuthorReplyPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -910,19 +915,20 @@ impl AuthorReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
         use core::alloc::*;
         let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, args, server_msg, data).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        Self::new_in(alloc::alloc::Global, status, args, server_msg, data)
     }}
 }
 
@@ -1015,10 +1021,10 @@ impl AcctRequestPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -1037,19 +1043,19 @@ impl AcctRequestPacket {
         AuthorRequestPacket::initialize((mem.add(1), len-1), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self, A> {unsafe {
         use core::alloc::*;
         let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+        Self::new_in(alloc::alloc::Global, flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
 }
 
@@ -1168,19 +1174,20 @@ impl AcctReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
         use core::alloc::*;
         let len = 5 + server_msg.len() + data.len();
         let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = alloc::alloc::alloc(layout);
-        if ptr.is_null() {
-            panic!();
-        }
+        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, server_msg, data).unwrap();
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
-        let ret = Box::from_raw(fatptr);
+        let ret = Box::from_raw_in(fatptr, the_alloc);
         ret
+    }}
+    #[doc=include_str!("untested_safety_msg.txt")]
+    pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+        Self::new_in(alloc::alloc::Global, status, server_msg, data)
     }}
 
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -1195,10 +1202,10 @@ impl AcctReplyPacket {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, self.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn boxed_to_bytes(s: Box<Self>) -> Box<[u8]> {
+    pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let thinptr = Box::into_raw(s) as *mut ();
-        unsafe { Box::from_raw(core::slice::from_raw_parts_mut(thinptr as *mut u8, real_len)) }
+        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
     }
 }
 

@@ -30,7 +30,7 @@ ROADMAP:
   - [ ] Polish things
     - [ ] Errors (handling, reporting)
     - [ ] Don't crash
-    - [ ] Make `alloc` optional (other option: allocator API?)
+    - [x] Custom Allocator Support
     - [x] "Zero-copy" parser
   - [ ] Security
     - [ ] Usage of unsafe
