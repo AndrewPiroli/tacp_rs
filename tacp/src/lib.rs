@@ -311,19 +311,19 @@ impl AuthenStartPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self, A> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+    pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, action, priv_level, authen_type, authen_service, user, port, rem_addr, data)
     }}
 }
@@ -445,19 +445,19 @@ impl AuthenReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         let len = 6 + serv_msg.len() + data.len();
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, flags, serv_msg, data).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), status, flags, serv_msg, data)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, flags, serv_msg, data)
     }}
 }
@@ -560,19 +560,19 @@ impl AuthenContinuePacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self, A> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: u8, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         let len = 5 + user_msg.len() + data.len();
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), flags, user_msg, data).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), flags, user_msg, data)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Box<Self> {unsafe {
+    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, user_msg, data)
     }}
 }
@@ -761,19 +761,19 @@ impl AuthorRequestPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self, A> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+    pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
 }
@@ -915,19 +915,19 @@ impl AuthorReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, args, server_msg, data).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), status, args, server_msg, data)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, args, server_msg, data)
     }}
 }
@@ -1043,18 +1043,18 @@ impl AcctRequestPacket {
         AuthorRequestPacket::initialize((mem.add(1), len-1), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self, A> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
-    pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Box<Self> {unsafe {
+    pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
 }
@@ -1174,19 +1174,19 @@ impl AcctReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self, A> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         let len = 5 + server_msg.len() + data.len();
-        let layout = Layout::array::<u8>(len).unwrap();
-        let ptr = the_alloc.allocate(layout).unwrap().as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, server_msg, data).unwrap();
+        let layout = Layout::array::<u8>(len)?;
+        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        Self::initialize((ptr, len), status, server_msg, data)?;
         let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref).unwrap() as *mut Self;
+        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
-        ret
+        Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Box<Self> { unsafe {
+    pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, server_msg, data)
     }}
 
@@ -1224,10 +1224,26 @@ pub enum TacpErr {
     ParseError(String),
     /// A mismatch between a parameter from the header and packet body with an explanation.
     HeaderMismatch(String),
+    /// An error in allocation
+    AllocError(String),
 }
+
 impl core::fmt::Display for TacpErr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        (self as &dyn core::fmt::Debug).fmt(f)
+        match self {
+            TacpErr::ParseError(d) => {
+                f.write_str("Parse error: ")?;
+                f.write_str(d)
+            },
+            TacpErr::HeaderMismatch(d) => {
+                f.write_str("Header mismatch: ")?;
+                f.write_str(d)
+            },
+            TacpErr::AllocError(d) => {
+                f.write_str("Alloc error: ")?;
+                f.write_str(d)
+            },
+        }
     }
 }
 impl core::error::Error for TacpErr {}
@@ -1239,22 +1255,37 @@ impl From<TacpErr> for Vec<u8> {
 }
 
 impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
-    fn from(_value: zerocopy::error::AlignmentError<S, D>) -> Self {
-        todo!()
+    fn from(_: zerocopy::error::AlignmentError<S, D>) -> Self {
+        // No really, we went out of our way to make things unaligned...
+        Self::ParseError("Alignment error: this is should never happen".to_string())
     }
 }
-impl From<zerocopy::error::AllocError> for TacpErr {
-    fn from(_value: zerocopy::error::AllocError) -> Self {
-        todo!()
-    }
-}
+
 impl<S, D> From<zerocopy::error::SizeError<S,D>> for TacpErr {
     fn from(_value: zerocopy::error::SizeError<S,D>) -> Self {
-        todo!()
+        Self::ParseError("ZC size error".to_string())
     }
 }
-impl<A, S, V> From<ConvertError<A, S, V>> for TacpErr {
-    fn from(_value: ConvertError<A, S, V>) -> Self {
-        todo!()
+
+
+impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpErr {
+    fn from(value: TryCastError<S, D>) -> Self {
+        match value {
+            ConvertError::Alignment(_) => Self::ParseError("Alignment error: this is should never happen".to_string()),
+            ConvertError::Size(_) => Self::ParseError("ZC size error".to_string()),
+            ConvertError::Validity(_) => Self::ParseError("ZC Failed to validate".to_string()),
+        }
+    }
+}
+
+impl From<core::alloc::LayoutError> for TacpErr {
+    fn from(_: core::alloc::LayoutError) -> Self {
+        Self::AllocError("LayoutError: requested allocation would overflow isize (max_size_for_align [u8])".to_string())
+    }
+}
+
+impl From<core::alloc::AllocError> for TacpErr {
+    fn from(_: core::alloc::AllocError) -> Self {
+        Self::AllocError("AllocError: allocation failure".to_string())
     }
 }

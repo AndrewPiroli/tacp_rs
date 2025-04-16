@@ -267,7 +267,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     0,
                     &msg.unwrap_or("Unimplemented".into()),
                     &Vec::with_capacity(0)
-                ))};
+                ).unwrap())};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHEN,
@@ -300,7 +300,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     &Vec::with_capacity(0),
                     &msg.unwrap_or("Generic error".into()),
                     &Vec::with_capacity(0),
-                ))};
+                ).unwrap())};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHOR,
@@ -332,7 +332,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     AcctStatus::ERROR,
                     &msg.unwrap_or("Generic error".into()),
                     &Vec::with_capacity(0),
-                ))};
+                ).unwrap())};
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::ACCT,
@@ -417,7 +417,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
             }
             cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into());
             debug!(username = ?cstate.authen_info.username, "Client provides username");
-            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, 1<<REPLY_FLAG_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0))};
+            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, 1<<REPLY_FLAG_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0)).unwrap() };
             cstate.authen_state = AuthenState::ASCIIGETPASS;
             info!("requesting ascii password from client");
             return SrvPacket::AuthenReply(ret);
@@ -442,7 +442,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                         0,
                         &Vec::from(b"Authentication Pass"),
                         &Vec::with_capacity(0),
-                    )
+                    ).unwrap()
                 }
                 else {
                     testsupport::report(PacketType::AUTHEN, false, &cstate.authen_info.username.as_ref().unwrap(), "").await;
@@ -451,7 +451,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                         0,
                         &Vec::from(b"Authentication Fail"),
                         &Vec::with_capacity(0),
-                    )
+                    ).unwrap()
                 }};
             return SrvPacket::AuthenReply(ret);
         },
@@ -485,7 +485,7 @@ async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> Srv
             0,
             &Vec::from(b"Username required: "),
             &Vec::with_capacity(0),
-        )};
+        ).unwrap()};
         cstate.authen_state = AuthenState::ASCIIGETUSER;
         return SrvPacket::AuthenReply(ret);
     }
@@ -496,7 +496,7 @@ async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> Srv
             1 << REPLY_FLAG_NOECHO,
             &Vec::from(b"Enter pass"),
             &Vec::with_capacity(0),
-        )};
+        ).unwrap()};
         cstate.authen_state = AuthenState::ASCIIGETPASS;
         return SrvPacket::AuthenReply(ret);
     }
@@ -510,7 +510,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
             0,
             &Vec::from(b"Failed to supply username"),
             &Vec::with_capacity(0),
-        )};
+        ).unwrap()};
         return SrvPacket::AuthenReply(ret);
     }
     let info = AuthenInfo {
@@ -525,7 +525,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
                 0,
                 &Vec::from(b"PAP Authentication PASS"),
                 &Vec::with_capacity(0),
-            )
+            ).unwrap()
         }
         else {
             testsupport::report(PacketType::AUTHEN, false, info.username.as_ref().unwrap(), "").await;
@@ -534,7 +534,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
                 0,
                 &Vec::from(b"PAP Authentication FAIL"),
                 &Vec::with_capacity(0),
-            )
+            ).unwrap()
         }};
     return SrvPacket::AuthenReply(ret);
 }
@@ -567,7 +567,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
             &Vec::with_capacity(0),
             &Vec::from("No cmd argument. Can not authorize!"),
             &Vec::with_capacity(0),
-        ))};
+        ).unwrap())};
     }
     // Stupid lifetimes
     let cmd = cmd.unwrap().value;
@@ -581,7 +581,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
             &Vec::with_capacity(0),
             &Vec::from(b"Approved"),
             &Vec::with_capacity(0),
-        )
+        ).unwrap()
     }
     else {
         testsupport::report(tacp::PacketType::AUTHOR, false, &user, "").await;
@@ -590,7 +590,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
             &Vec::with_capacity(0),
             &Vec::from(b"Denied"),
             &Vec::with_capacity(0),
-        )
+        ).unwrap()
     }};
     return SrvPacket::AuthorReply(ret);
 }
@@ -619,7 +619,7 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
                     AcctStatus::SUCCESS,
                     &Vec::from(b"Ok"),
                     &Vec::with_capacity(0),
-                ) }
+                ).unwrap() }
             },
             Err(ref e) => {
                 error!("{e:?}");
@@ -627,7 +627,7 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
                     AcctStatus::ERROR,
                     &Vec::from(b"Failed"),
                     &Vec::with_capacity(0)
-                    )}
+                    ).unwrap() }
             }
         };
     }

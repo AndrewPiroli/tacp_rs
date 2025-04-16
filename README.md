@@ -29,7 +29,7 @@ ROADMAP:
     - [ ] Make doc comments nice
   - [ ] Polish things
     - [ ] Errors (handling, reporting)
-    - [ ] Don't crash
+    - [x] Don't crash
     - [x] Custom Allocator Support
     - [x] "Zero-copy" parser
   - [ ] Security

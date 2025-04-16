@@ -75,7 +75,7 @@ fn main() {
                 username.unwrap_or_default().as_bytes(),
                 blank.as_bytes(),
             blank.as_bytes(),
-                blank.as_bytes()))};
+                blank.as_bytes()).unwrap())};
             header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, 0, session_id, body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AuthenReply;
@@ -94,7 +94,7 @@ fn main() {
                 username.as_bytes(),
                 blank.as_bytes(),
             blank.as_bytes(),
-                password.as_bytes()))};
+                password.as_bytes()).unwrap())};
             header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, 0, session_id, body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AuthenReply;
@@ -119,7 +119,7 @@ fn main() {
             // this api needs work
             let sliced: Vec<&[u8]> = arg_val_pairs.iter().map(Vec::as_slice).collect();
             let body = unsafe {
-                AuthorRequestPacket::boxed_to_bytes(AuthorRequestPacket::new(AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced))
+                AuthorRequestPacket::boxed_to_bytes(AuthorRequestPacket::new(AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced).unwrap())
             };
             header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHOR, seq_no, 0, session_id,body.len() as u32);
             seq_no += 1;
@@ -145,7 +145,7 @@ fn main() {
             // this api needs work
             let sliced: Vec<&[u8]> = arg_val_pairs.iter().map(Vec::as_slice).collect();
             let body = unsafe {
-                AcctRequestPacket::boxed_to_bytes(AcctRequestPacket::new(AcctFlags::RecordStop, AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced))
+                AcctRequestPacket::boxed_to_bytes(AcctRequestPacket::new(AcctFlags::RecordStop, AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced).unwrap())
             };
             header = PacketHeader::new(Version::VersionDefault, PacketType::ACCT, seq_no, 0, session_id, body.len() as u32);
             seq_no += 1;
@@ -312,7 +312,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             use tacp::REPLY_FLAG_NOECHO;
             let user_msg = util::prompt_user_input("Enter data for reply: ", packet.flags & 1 << REPLY_FLAG_NOECHO == 1);
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, user_msg.as_bytes(), blank.as_bytes()))
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, user_msg.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
@@ -337,7 +337,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             println!("Server requests username!");
             let username = util::prompt_user_input("Enter username: ", false);
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, username.as_bytes(), blank.as_bytes()))
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, username.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
@@ -362,7 +362,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             println!("Server requests password!");
             let pass = util::prompt_user_input("Enter password: ", true);
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, pass.as_bytes(), blank.as_bytes()))
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, pass.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
