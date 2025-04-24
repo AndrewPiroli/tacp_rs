@@ -35,6 +35,7 @@ ROADMAP:
   - [ ] Security
     - [ ] Usage of unsafe
     - [ ] Direct fuzzing
+    - [x] Use miri
 
 ## tserver - Basic testing server
 

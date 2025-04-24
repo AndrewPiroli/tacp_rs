@@ -1,4 +1,5 @@
 #![allow(non_upper_case_globals)]
+#![cfg_attr(miri, allow(unused_assignments, dead_code, unused_imports, unused_macros))]
 
 use std::{error::*, net::SocketAddr};
 use std::result::Result;
@@ -19,6 +20,18 @@ macro_rules! runtest {
     };
 }
 
+#[cfg(miri)]
+fn main() -> Result<(), Box<dyn Error>> {
+    if pcap::check_pcap() {
+        println!("PCAP Replay Test - PASS");
+    }
+    else {
+        println!("PCAP Replay Test - FAIL");
+    }
+    Ok(())
+}
+
+#[cfg(not(miri))]
 fn main() -> Result<(), Box<dyn Error>> {
     // Start web server in the background while we do pcap stuff
     start_webserver();
