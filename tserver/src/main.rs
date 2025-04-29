@@ -25,7 +25,6 @@ enum AuthenState {
     ASCIIGETPASS,
 }
 
-#[derive(Debug)]
 /// Represents reply packets from the server to the client
 enum SrvPacket {
     /// Authen REPLY packet (may or may not terminate session)
@@ -384,10 +383,9 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
         AuthenState::None => { // We have nothing so far, so this is a AUTHEN START packet
             info!("Authen START");
             let pkt = AuthenStartPacket::try_ref_from_bytes(&packet);
-            // let pkt = AuthenStartPacket::try_from(packet.deref());
-            if pkt.is_err() {
+            if let Err(err) = pkt {
                 error!("Packet Parse Failure");
-                return SrvPacket::AuthenGenericError(Some(pkt.unwrap_err().to_string().into()));
+                return SrvPacket::AuthenGenericError(Some(err.to_string().into()));
             }
             let pkt = pkt.unwrap();
             if pkt.len() != expected_length { // probably key failure
@@ -607,10 +605,22 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
     }
     let user = pkt.get_user().unwrap_or(&[]);
     let user = String::from_utf8_lossy(user).into_owned();
+    let mut to_log = String::new(); // this is a bit gross
+    for x in pkt.iter_arg_copy() {
+        if let Ok(y) = x {
+            to_log.push_str(&String::from_utf8_lossy(&y.to_bytes()));
+            to_log.push(';');
+        }
+    }
     let ret;
     { // scoped because Box<dyn ...> ruins async
         // fixme, log string better
-        let x = policy::enforce::account(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), &format!("{pkt:?}")).await;
+        let x = policy::enforce::account(
+            POLICY.get().unwrap(),
+            cstate.addr.ip(),
+            &user,
+            &to_log
+        ).await;
         ret = match x {
             Ok(_) => {
                 unsafe { AcctReplyPacket::new(

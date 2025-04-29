@@ -27,8 +27,8 @@ pub mod argvalpair;
 
 /// TACACS+ Header Version Field
 
-#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned, IntoBytes)]
 #[repr(u8)]
+#[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned)]
 pub enum Version {
     VersionDefault = 0xc << 4,
     VersionOne = (Self::VersionDefault as u8) | 0x1,
@@ -42,8 +42,8 @@ pub const MINOR_VER_DEFAULT: u8 = 0x0;
 /// TACACS+ minor version 1. Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
 pub const MINOR_VER_ONE: u8 = 0x1;
 
-#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned, IntoBytes)]
 #[repr(u8)]
+#[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned)]
 /// All TACACS+ packets are one of the following 3 types
 pub enum PacketType {
     /// Authentication
@@ -110,8 +110,8 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[repr(C)]
-#[derive(Copy, Clone, Debug, TryFromBytes, KnownLayout, Immutable, Unaligned, IntoBytes)]
+#[repr(C, packed)]
+#[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 pub struct PacketHeader {
     pub version: Version,
     pub ty: PacketType,
@@ -149,7 +149,7 @@ Encoding:
 ```
 */
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthenStartAction {
     LOGIN    = 0x1,
     CHPASS   = 0x2,
@@ -158,7 +158,7 @@ pub enum AuthenStartAction {
 
 /// Indicates what method of authentication is being requested/used.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthenType {
     ASCII = 0x1,
     PAP = 0x2,
@@ -172,7 +172,7 @@ pub type PrivLevel = u8;
 
 /// Indicates the Service that authentication is being requested for.
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthenService {
     NONE = 0x0,
     LOGIN = 0x1,
@@ -206,8 +206,8 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Immutable, TryFromBytes, Unaligned)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Immutable, TryFromBytes, IntoBytes, Unaligned)]
 pub struct AuthenStartPacket {
     pub action: AuthenStartAction,
     pub priv_level: PrivLevel,
@@ -329,7 +329,7 @@ impl AuthenStartPacket {
 }
 
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthenReplyStatus {
     PASS = 0x01,
     FAIL = 0x02,
@@ -363,8 +363,8 @@ Encoding:
 +----------------+----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AuthenReplyPacket {
     pub status: AuthenReplyStatus,
     pub flags: u8,
@@ -480,8 +480,8 @@ Encoding:
 +----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AuthenContinuePacket {
     pub user_msg_len: U16,
     pub data_len: U16,
@@ -592,7 +592,7 @@ impl AuthenContinuePacket {
 /// as those interactions were not conducted using the TACACS+ protocol, they will not be documented here.
 /// For implementers of clients who need details of the other protocols, please refer to the respective Kerberos \[RFC4120\] and RADIUS \[RFC3579\] RFCs.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthorMethod {
     NOT_SET = 0x00,
     NONE = 0x01,
@@ -636,8 +636,8 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AuthorRequestPacket {
     pub method: AuthorMethod,
     pub priv_level: PrivLevel,
@@ -803,8 +803,8 @@ Encoding:
 +----------------+----------------+----------------+----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AuthorReplyPacket {
     pub status: AuthorStatus,
     pub arg_cnt: u8,
@@ -933,8 +933,8 @@ impl AuthorReplyPacket {
 }
 
 /// Status of the Authorization Request
-#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthorStatus {
     /// Authorized as-is
     PASS_ADD = 0x1,
@@ -981,8 +981,8 @@ Encoding:
 NOTE: This is basically the same as the Authorization Request Packet body,
     We take advantage of this by parsing it as such, then adding the flags
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AcctRequestPacket {
     pub flags: AcctFlags,
     pub inner: AuthorRequestPacket,
@@ -1085,8 +1085,8 @@ FLAG_STOP = 0x4
 
 FLAG_WATCHDOG = 0x8
 */
-#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AcctFlags {
     RecordStart = 0x2,
     RecordStop = 0x4,
@@ -1110,8 +1110,8 @@ Encoding:
 +----------------+
 ```
 */
-#[derive(Debug, KnownLayout, Unaligned, TryFromBytes, Immutable)]
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AcctReplyPacket {
     pub server_msg_len: U16,
     pub data_len: U16,
@@ -1210,8 +1210,8 @@ impl AcctReplyPacket {
 }
 
 /// Accounting Status Field
-#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, Immutable)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AcctStatus {
     SUCCESS = 0x1,
     ERROR = 0x2,

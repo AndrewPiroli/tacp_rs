@@ -170,8 +170,8 @@ fn main() {
         match expected_reply {
             NextPacket::AuthenReply => {
                 let recv_parsed = AuthenReplyPacket::try_ref_from_bytes(&recv_body);
-                if recv_parsed.is_err() {
-                    eprintln!("err {:?}", recv_parsed.unwrap_err());
+                if let Err(err) = recv_parsed {
+                    eprintln!("err {err:?}");
                     util::hexdump(&recv_body);
                     break;
                 }
@@ -179,8 +179,8 @@ fn main() {
             },
             NextPacket::AuthorReply => {
                 let recv_parsed = AuthorReplyPacket::try_ref_from_bytes(&recv_body);
-                if recv_parsed.is_err() {
-                    eprintln!("err {:?}", recv_parsed.unwrap_err());
+                if let Err(err) = recv_parsed {
+                    eprintln!("err {err:?}");
                     util::hexdump(&recv_body);
                     break;
                 }
@@ -217,8 +217,8 @@ fn main() {
             },
             NextPacket::AcctReply => {
                 let recv_parsed = AcctReplyPacket::try_ref_from_bytes(&recv_body);
-                if recv_parsed.is_err() {
-                    eprintln!("err {:?}", recv_parsed.unwrap_err());
+                if let Err(err) = recv_parsed {
+                    eprintln!("err {err:?}");
                     util::hexdump(&recv_body);
                     break;
                 }
