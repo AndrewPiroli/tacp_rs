@@ -127,27 +127,7 @@ impl PacketHeader {
     }
 }
 
-/**
-Authentication START Packet Body
-
-Encoding:
-```
-1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8  1 2 3 4 5 6 7 8
-+----------------+----------------+----------------+----------------+
-|    action      |    priv_lvl    |  authen_type   | authen_service |
-+----------------+----------------+----------------+----------------+
-|    user_len    |    port_len    |  rem_addr_len  |    data_len    |
-+----------------+----------------+----------------+----------------+
-|    user ...                                                       |
-+----------------+----------------+----------------+----------------+
-|    port ...                                                       |
-+----------------+----------------+----------------+----------------+
-|    rem_addr ...                                                   |
-+----------------+----------------+----------------+----------------+
-|    data...                                                        |
-+----------------+----------------+----------------+----------------+
-```
-*/
+/// Indicates the authentication action: login, change password, or the insecure and deprecated "sendauth"
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub enum AuthenStartAction {
