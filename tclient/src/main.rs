@@ -202,7 +202,7 @@ fn main() {
                     println!("Server sent data:");
                     util::hexdump(data);
                 }
-                for avp in parsed.iter_arg_copy(){
+                for avp in parsed.iter_args(){
                     match avp {
                         Ok(avp) => {
                             let sep = if avp.optional {"*"} else {"="};

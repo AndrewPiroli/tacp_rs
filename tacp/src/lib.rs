@@ -9,7 +9,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::alloc::Allocator;
-use argvalpair::ArgValPairCopyIter;
+use argvalpair::ArgValPairIter;
 
 use zerocopy::*;
 use zerocopy_derive::*;
@@ -690,11 +690,11 @@ impl AuthorRequestPacket {
         }
         Some(&self.varidata[skip..(skip+arg_len)])
     }
-    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
+    pub fn iter_args(&self) -> ArgValPairIter {
         let lengths_range = 0..(self.arg_cnt as usize);
         let data_range_base = 
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
-        ArgValPairCopyIter::new(&self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
+        ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
         8 + self.varidata.len()
@@ -844,11 +844,11 @@ impl AuthorReplyPacket {
         }
         Some(&self.varidata[skip..(skip+arg_len)])
     }
-    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
+    pub fn iter_args(&self) -> ArgValPairIter {
         let lengths_range = 0..(self.arg_cnt as usize);
         let data_range_base = 
             self.arg_cnt as usize + self.server_msg_len.get() as usize + self.data_len.get() as usize;
-        ArgValPairCopyIter::new(&self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
+        ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
         6 + self.varidata.len()
@@ -1000,8 +1000,8 @@ impl AcctRequestPacket {
     pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
         self.inner.get_raw_argvalpair(idx)
     }
-    pub fn iter_arg_copy(&self) -> ArgValPairCopyIter {
-        self.inner.iter_arg_copy()
+    pub fn iter_args(&self) -> ArgValPairIter {
+        self.inner.iter_args()
     }
     pub fn len(&self) -> usize {
         1 + self.inner.len()

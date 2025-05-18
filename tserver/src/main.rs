@@ -547,7 +547,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
         return SrvPacket::AuthorGenericError(Some("Packet length mismatch".into()));
     }
     let mut cmd = None;
-    for arg in pkt.iter_arg_copy().flatten() {
+    for arg in pkt.iter_args().flatten() {
         if arg.argument == "cmd" && arg.value.as_str().is_some() {
             cmd = Some(arg);
             break;
@@ -606,7 +606,7 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
     let user = pkt.get_user().unwrap_or(&[]);
     let user = String::from_utf8_lossy(user).into_owned();
     let mut to_log = String::new(); // this is a bit gross
-    for x in pkt.iter_arg_copy() {
+    for x in pkt.iter_args() {
         if let Ok(y) = x {
             to_log.push_str(&String::from_utf8_lossy(&y.to_bytes()));
             to_log.push(';');

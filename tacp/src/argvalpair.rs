@@ -10,16 +10,16 @@ use core::net::IpAddr;
 use crate::TacpErr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum Value<'a> {
     Numeric(f64),
     Boolean(bool),
     IPAddr(IpAddr),
-    Str(String),
+    Str(&'a str),
     Empty,
 }
 
-impl From<&str> for Value {
-    fn from(value: &str) -> Self {
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(value: &'a str) -> Self {
         if value.is_empty() { return Self::Empty }
         // This is not a bug!
         if value == "true" || value == "false" { return Self::Boolean(value == "true") }
@@ -29,14 +29,14 @@ impl From<&str> for Value {
         if let Ok(num) = value.parse::<f64>() {
             return Self::Numeric(num);
         }
-        Self::Str(value.to_owned())
+        Self::Str(value)
     }
 }
 
-impl Value {
+impl<'a> Value<'a> {
     pub fn as_str(&self) -> Option<&str> {
         if let Self::Str(s) = self {
-            Some(s.as_str())
+            Some(s)
         }
         else { None }
     }
@@ -64,16 +64,16 @@ impl Value {
 }
 
 #[derive(Debug, Clone)]
-pub struct ArgValPair {
-    pub argument: String,
-    pub value: Value,
+pub struct ArgValPair<'arg, 'val> {
+    pub argument: &'arg str,
+    pub value: Value<'val>,
     pub optional: bool,
 }
 
-impl TryFrom<&str> for ArgValPair {
+impl<'a> TryFrom<&'a str> for ArgValPair<'a, 'a> {
     type Error = super::TacpErr;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
         if let Some(seplen) = value.find('=') {
             let (arg, mut val) = value.split_at(seplen);
             // remove separator
@@ -85,7 +85,7 @@ impl TryFrom<&str> for ArgValPair {
             }
             return Ok(
                 Self {
-                    argument: arg.to_owned(),
+                    argument: arg,
                     value: Value::from(val),
                     optional: false,
                 }
@@ -101,7 +101,7 @@ impl TryFrom<&str> for ArgValPair {
             }
             return Ok(
                 Self {
-                    argument: arg.to_owned(),
+                    argument: arg,
                     value: Value::from(val),
                     optional: true,
                 }
@@ -111,15 +111,15 @@ impl TryFrom<&str> for ArgValPair {
     }
 }
 
-impl TryFrom<&String> for ArgValPair {
+impl<'a> TryFrom<&'a String> for ArgValPair<'a, 'a> {
     type Error = TacpErr;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a String) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str())
     }
 }
 
-impl ArgValPair {
+impl<'a, 'b> ArgValPair<'a, 'b> {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = Vec::with_capacity(256);
         res.extend(self.argument.as_bytes());
@@ -140,15 +140,15 @@ impl ArgValPair {
     }
 }
 
-pub struct ArgValPairCopyIter<'a> {
+pub struct ArgValPairIter<'a> {
     current: u16,
     data_idx: usize,
-    limit: &'a u8,
+    limit: u8,
     lengths: &'a [u8],
     data: &'a [u8],
 }
-impl<'a> ArgValPairCopyIter<'a> {
-    pub fn new(limit: &'a u8, lengths: &'a [u8], data: &'a [u8]) -> Self {
+impl<'a> ArgValPairIter<'a> {
+    pub fn new(limit: u8, lengths: &'a [u8], data: &'a [u8]) -> Self {
         Self {
             current: 0,
             data_idx: 0,
@@ -159,16 +159,24 @@ impl<'a> ArgValPairCopyIter<'a> {
     }
 }
 
-impl Iterator for ArgValPairCopyIter<'_> {
-    type Item = Result<ArgValPair, TacpErr>;
+impl<'a> Iterator for ArgValPairIter<'a> {
+    type Item = Result<ArgValPair<'a, 'a>, TacpErr>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current < *self.limit as u16 {
+        use alloc::format;
+        if self.current < self.limit as u16 {
             let len = self.lengths[self.current as usize] as usize;
             let new_idx = self.data_idx + len;
-            let ret = String::from_utf8_lossy(&self.data[self.data_idx..new_idx]).into_owned();
+            let ret =  match str::from_utf8(&self.data[self.data_idx..new_idx]) {
+                Ok(avp_str) => {
+                    Some(ArgValPair::try_from(avp_str))
+                },
+                Err(e) => {
+                    Some(Err(TacpErr::ParseError(format!("UTF-8 Conversion Error at during ArgValPair parsing currentidx:{}. Error: {e}", self.current))))
+                }
+            };
             self.data_idx = new_idx;
             self.current += 1;
-            return Some(ArgValPair::try_from(&ret));
+            return ret;
         }
         None
     }
