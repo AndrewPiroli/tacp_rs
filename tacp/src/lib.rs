@@ -558,7 +558,7 @@ impl AuthenContinuePacket {
 }
 
 
-/// Indicates the authentication method used to acquire use information
+/// Indicates the authentication method used to acquire user information
 ///
 /// As this information is not always subject to verification, it MUST NOT be used in policy evaluation.
 /// LINE refers to a fixed password associated with the terminal line used to gain access.
