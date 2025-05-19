@@ -608,7 +608,7 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
     let mut to_log = String::new(); // this is a bit gross
     for x in pkt.iter_args() {
         if let Ok(y) = x {
-            to_log.push_str(&String::from_utf8_lossy(&y.to_bytes()));
+            to_log.push_str(&String::from_utf8_lossy(&y.to_vec()));
             to_log.push(';');
         }
     }

@@ -120,7 +120,7 @@ impl<'a> TryFrom<&'a String> for ArgValPair<'a, 'a> {
 }
 
 impl<'a, 'b> ArgValPair<'a, 'b> {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_vec(&self) -> Vec<u8> {
         let mut res = Vec::with_capacity(256);
         res.extend(self.argument.as_bytes());
         if self.optional {

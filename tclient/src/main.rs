@@ -106,7 +106,7 @@ fn main() {
                     let parsed: Vec<Vec<u8>> = avp.iter().filter_map(|xx|{
                         let av_pair = ArgValPair::try_from(xx);
                         if let Ok(yy) = av_pair {
-                            Some(yy.to_bytes())
+                            Some(yy.to_vec())
                         }
                         else {
                             None
@@ -132,7 +132,7 @@ fn main() {
                     let parsed: Vec<Vec<u8>> = avp.iter().filter_map(|xx|{
                         let av_pair = ArgValPair::try_from(xx);
                         if let Ok(yy) = av_pair {
-                            Some(yy.to_bytes())
+                            Some(yy.to_vec())
                         }
                         else {
                             None
