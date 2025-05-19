@@ -268,7 +268,7 @@ impl AuthenStartPacket {
         let mem = mem.0;
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + data.len();
         if len < required_mem {
-            return Err(TacpErr::ParseError("FIXME".to_owned()));
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem.add(0) = action as u8;
         *mem.add(1) = priv_level as u8;
@@ -402,8 +402,9 @@ impl AuthenReplyPacket {
         use core::ptr::copy_nonoverlapping;
         let len = mem.1;
         let mem = mem.0;
-        if len < 6+serv_msg.len()+data.len() {
-            return Err(TacpErr::ParseError("FIXME error message".to_owned()));
+        let required_mem = 6+serv_msg.len()+data.len();
+        if len < required_mem {
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         let serv_msg_len = U16::new(serv_msg.len() as u16);
         let serv_msg_bytes = serv_msg_len.as_bytes();
@@ -518,8 +519,9 @@ impl AuthenContinuePacket {
         use core::ptr::copy_nonoverlapping;
         let len = mem.1;
         let mem = mem.0;
-        if len < 5 + user_msg.len() + data.len() {
-            return Err(TacpErr::ParseError("FIXME".to_owned()));
+        let required_mem = 5 + user_msg.len() + data.len();
+        if len < required_mem {
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         let user_msg_len_be = U16::new(user_msg.len() as u16);
         let data_len_be = U16::new(data.len() as u16);
@@ -711,7 +713,7 @@ impl AuthorRequestPacket {
         let mem = mem.0;
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
-            return Err(TacpErr::ParseError("Fixme".to_owned()));
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem.add(0) = method as u8;
         *mem.add(1) = priv_level as u8;
@@ -865,7 +867,7 @@ impl AuthorReplyPacket {
         let mem = mem.0;
         let required_mem = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
-            return Err(TacpErr::ParseError("FIXME".to_owned()));
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem.add(0) = status as u8;
         *mem.add(1) = args.len() as u8;
@@ -1017,7 +1019,7 @@ impl AcctRequestPacket {
         let mem = mem.0;
         let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
-            return Err(TacpErr::ParseError("FIXME".to_owned()));
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem = flags as u8;
         AuthorRequestPacket::initialize((mem.add(1), len-1), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
@@ -1133,7 +1135,7 @@ impl AcctReplyPacket {
         let mem = mem.0;
         let required_mem = 5 + server_msg.len() as u16 as usize + data.len() as u16 as usize;
         if len < required_mem {
-            return Err(TacpErr::ParseError("FIXME".to_owned()));
+            return Err(TacpErr::BufferSize((required_mem, len)));
         }
         let server_msg_len_be = U16::new(server_msg.len() as u16);
         let server_msg_len_bytes = server_msg_len_be.as_bytes();
@@ -1206,6 +1208,9 @@ pub enum TacpErr {
     HeaderMismatch(String),
     /// An error in allocation
     AllocError(String),
+    /// The buffer is not large enough
+    /// .0 is the required size, .1 is the given size
+    BufferSize((usize, usize))
 }
 
 impl core::fmt::Display for TacpErr {
@@ -1223,6 +1228,14 @@ impl core::fmt::Display for TacpErr {
                 f.write_str("Alloc error: ")?;
                 f.write_str(d)
             },
+            TacpErr::BufferSize((required, given)) => {
+                let mut req_buf = itoa::Buffer::new();
+                let mut given_buf = req_buf.clone();
+                f.write_str("Buffer Size error: we need ")?;
+                f.write_str(req_buf.format(*required))?;
+                f.write_str(" bytes for this operation but were provided only ")?;
+                f.write_str(given_buf.format(*given))
+            }
         }
     }
 }
