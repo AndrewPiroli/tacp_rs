@@ -1204,10 +1204,8 @@ pub enum AcctStatus {
 pub enum TacpErr {
     /// An error in parsing a packet or field with an explanation.
     ParseError(String),
-    /// A mismatch between a parameter from the header and packet body with an explanation.
-    HeaderMismatch(String),
     /// An error in allocation
-    AllocError(String),
+    AllocError(&'static str),
     /// The buffer is not large enough
     /// .0 is the required size, .1 is the given size
     BufferSize((usize, usize))
@@ -1218,10 +1216,6 @@ impl core::fmt::Display for TacpErr {
         match self {
             TacpErr::ParseError(d) => {
                 f.write_str("Parse error: ")?;
-                f.write_str(d)
-            },
-            TacpErr::HeaderMismatch(d) => {
-                f.write_str("Header mismatch: ")?;
                 f.write_str(d)
             },
             TacpErr::AllocError(d) => {
@@ -1273,12 +1267,12 @@ impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpErr {
 
 impl From<core::alloc::LayoutError> for TacpErr {
     fn from(_: core::alloc::LayoutError) -> Self {
-        Self::AllocError("LayoutError: requested allocation would overflow isize (max_size_for_align [u8])".to_string())
+        Self::AllocError("LayoutError: requested allocation would overflow isize (max_size_for_align [u8])")
     }
 }
 
 impl From<core::alloc::AllocError> for TacpErr {
     fn from(_: core::alloc::AllocError) -> Self {
-        Self::AllocError("AllocError: allocation failure".to_string())
+        Self::AllocError("AllocError: allocation failure")
     }
 }

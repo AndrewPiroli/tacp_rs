@@ -459,7 +459,7 @@ fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::R
 
     let pkt = AuthenContinuePacket::try_ref_from_bytes(data)?;
     if pkt.len() != expected_length {
-        return Err(TacpErr::HeaderMismatch(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
+        return Err(TacpErr::ParseError(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
     }
     Ok(pkt)
 }
