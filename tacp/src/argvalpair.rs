@@ -4,7 +4,6 @@
 //! way while still following the RFC
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use alloc::borrow::ToOwned;
 use core::net::IpAddr;
 
 use crate::TacpErr;
@@ -107,7 +106,7 @@ impl<'a> TryFrom<&'a str> for ArgValPair<'a, 'a> {
                 }
             )
         }
-        Err(super::TacpErr::ParseError("No valid separator ('=' or '*') found!".to_owned()))
+        Err(super::TacpErr::ParseError("No valid separator ('=' or '*') found!"))
     }
 }
 
@@ -162,7 +161,6 @@ impl<'a> ArgValPairIter<'a> {
 impl<'a> Iterator for ArgValPairIter<'a> {
     type Item = Result<ArgValPair<'a, 'a>, TacpErr>;
     fn next(&mut self) -> Option<Self::Item> {
-        use alloc::format;
         if self.current < self.limit as u16 {
             let len = self.lengths[self.current as usize] as usize;
             let new_idx = self.data_idx + len;
@@ -171,7 +169,7 @@ impl<'a> Iterator for ArgValPairIter<'a> {
                     Some(ArgValPair::try_from(avp_str))
                 },
                 Err(e) => {
-                    Some(Err(TacpErr::ParseError(format!("UTF-8 Conversion Error at during ArgValPair parsing currentidx:{}. Error: {e}", self.current))))
+                    Some(Err(TacpErr::Utf8ConversionError(e)))
                 }
             };
             self.data_idx = new_idx;

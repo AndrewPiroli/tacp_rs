@@ -4,9 +4,6 @@
 #![no_std]
 extern crate alloc;
 
-use alloc::borrow::ToOwned;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::alloc::Allocator;
 use argvalpair::ArgValPairIter;
@@ -1203,12 +1200,14 @@ pub enum AcctStatus {
 #[derive(Debug, Clone)]
 pub enum TacpErr {
     /// An error in parsing a packet or field with an explanation.
-    ParseError(String),
+    ParseError(&'static str),
     /// An error in allocation
     AllocError(&'static str),
     /// The buffer is not large enough
     /// .0 is the required size, .1 is the given size
-    BufferSize((usize, usize))
+    BufferSize((usize, usize)),
+    /// Failure converting packet bytes to UTF-8 string
+    Utf8ConversionError(alloc::str::Utf8Error),
 }
 
 impl core::fmt::Display for TacpErr {
@@ -1230,27 +1229,26 @@ impl core::fmt::Display for TacpErr {
                 f.write_str(" bytes for this operation but were provided only ")?;
                 f.write_str(given_buf.format(*given))
             }
+            TacpErr::Utf8ConversionError(inner) => {
+                f.write_str("Failure in UTF-8 conversion: ")?;
+                inner.fmt(f)
+            }
         }
     }
 }
 impl core::error::Error for TacpErr {}
 
-impl From<TacpErr> for Vec<u8> {
-    fn from(value: TacpErr) -> Self {
-        value.to_string().as_bytes().to_owned()
-    }
-}
 
 impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
     fn from(_: zerocopy::error::AlignmentError<S, D>) -> Self {
         // No really, we went out of our way to make things unaligned...
-        Self::ParseError("Alignment error: this is should never happen".to_string())
+        Self::ParseError("Alignment error: this is should never happen")
     }
 }
 
 impl<S, D> From<zerocopy::error::SizeError<S,D>> for TacpErr {
     fn from(_value: zerocopy::error::SizeError<S,D>) -> Self {
-        Self::ParseError("ZC size error".to_string())
+        Self::ParseError("ZC size error")
     }
 }
 
@@ -1258,9 +1256,9 @@ impl<S, D> From<zerocopy::error::SizeError<S,D>> for TacpErr {
 impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpErr {
     fn from(value: TryCastError<S, D>) -> Self {
         match value {
-            ConvertError::Alignment(_) => Self::ParseError("Alignment error: this is should never happen".to_string()),
-            ConvertError::Size(_) => Self::ParseError("ZC size error".to_string()),
-            ConvertError::Validity(_) => Self::ParseError("ZC Failed to validate".to_string()),
+            ConvertError::Alignment(_) => Self::ParseError("Alignment error: this is should never happen"),
+            ConvertError::Size(_) => Self::ParseError("ZC size error"),
+            ConvertError::Validity(_) => Self::ParseError("ZC Failed to validate"),
         }
     }
 }
@@ -1274,5 +1272,11 @@ impl From<core::alloc::LayoutError> for TacpErr {
 impl From<core::alloc::AllocError> for TacpErr {
     fn from(_: core::alloc::AllocError) -> Self {
         Self::AllocError("AllocError: allocation failure")
+    }
+}
+
+impl From<alloc::str::Utf8Error> for TacpErr {
+    fn from(value: alloc::str::Utf8Error) -> Self {
+        Self::Utf8ConversionError(value)
     }
 }
