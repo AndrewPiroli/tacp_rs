@@ -455,11 +455,11 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
 }
 
 #[instrument]
-fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<&AuthenContinuePacket, TacpErr> {
+fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<&AuthenContinuePacket, TacpServerError> {
 
     let pkt = AuthenContinuePacket::try_ref_from_bytes(data)?;
     if pkt.len() != expected_length {
-        return Err(TacpErr::ParseError(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
+        return Err(TacpServerError::ParseError(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
     }
     Ok(pkt)
 }
@@ -649,3 +649,34 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
     }
     return SrvPacket::AcctReply(ret);
 }
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TacpServerError {
+    ParseError(String),
+}
+
+impl core::fmt::Display for TacpServerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TacpServerError::ParseError(desc) => {
+                f.write_str("Parsing error: ")?;
+                f.write_str(&desc)
+            },
+        }
+    }
+}
+
+use zerocopy::{TryCastError, ConvertError};
+
+impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpServerError {
+    fn from(value: TryCastError<S, D>) -> Self {
+        match value {
+            ConvertError::Alignment(_) => Self::ParseError("Alignment error: this is should never happen".to_string()),
+            ConvertError::Size(_) => Self::ParseError("ZC size error".to_string()),
+            ConvertError::Validity(_) => Self::ParseError("ZC Failed to validate".to_string()),
+        }
+    }
+}
+
+impl core::error::Error for TacpServerError {}

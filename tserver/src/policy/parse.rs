@@ -11,7 +11,7 @@ pub(crate) fn load(policy_str: &str) -> Result<Policy, Box<dyn Error>>{
     let mut policy_file = StrictYamlLoader::load_from_str(policy_str)?;
     if policy_file.is_empty() {
         error!("Policy parsed ok but is empty.");
-        let ret = Box::new(TacpErr::ParseError("Policy Parsed ok but is empty".to_owned()));
+        let ret = Box::new(TacpServerError::ParseError("Policy Parsed ok but is empty".to_owned()));
         return Err(ret);
     }
     if policy_file.len() != 1 {
@@ -231,13 +231,13 @@ fn parse_author_policy(policy: &StrictYaml, groupname: &str) -> AuthorPolicy {
     ret
 }
 
-fn parse_acct_policy(policy: &StrictYaml, groupname: &str) -> Result<AcctPolicy, TacpErr> {
+fn parse_acct_policy(policy: &StrictYaml, groupname: &str) -> Result<AcctPolicy, TacpServerError> {
     if let Some(policy) = policy.as_hash() {
         for (target, value) in policy {
             if let Some(setting) = target.as_str() {
                 if setting.eq_ignore_ascii_case("file") {
                     if let Some(filename) = value.as_str() { return Ok(AcctPolicy(AcctTarget::File(filename.into()))); }
-                    else { return Err(TacpErr::ParseError(format!("AcctPolicy for group {groupname} specified file but filename malformed"))); }
+                    else { return Err(TacpServerError::ParseError(format!("AcctPolicy for group {groupname} specified file but filename malformed"))); }
                 }
                 if setting.eq_ignore_ascii_case("syslog") {
                     let mut ip = None;
@@ -262,18 +262,18 @@ fn parse_acct_policy(policy: &StrictYaml, groupname: &str) -> Result<AcctPolicy,
                     }
                     else {
                         error!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}");
-                        return Err(TacpErr::ParseError(format!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}")))
+                        return Err(TacpServerError::ParseError(format!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}")))
                     }
                 } else { error!("Unknown Acct Policy target: \"{setting}\" for group {groupname}") }
             }
             else {
                 error!("AcctPolicy parse error(group {groupname}), acct target is not a string");
-                return Err(TacpErr::ParseError(format!("AcctPolicy parse error, acct target is not a string for group {groupname}")));
+                return Err(TacpServerError::ParseError(format!("AcctPolicy parse error, acct target is not a string for group {groupname}")));
             }
         }
     } else { error!("Failed to parse entrire AcctPolicy section for group {groupname}"); }
     error!("Reached end of AcctPolicy parsing for group {groupname} with nothing to show for myself.");
-    Err(TacpErr::ParseError(format!("Reached end of AcctPolicy parsing for group {groupname} with nothing to show for myself.")))
+    Err(TacpServerError::ParseError(format!("Reached end of AcctPolicy parsing for group {groupname} with nothing to show for myself.")))
 }
 
 fn parse_authen_policy(policy: &StrictYaml, groupname: &str) -> AuthenPolicy {

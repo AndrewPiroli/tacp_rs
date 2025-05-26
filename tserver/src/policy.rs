@@ -1,6 +1,5 @@
 use fnv::FnvHashMap;
-use tacp::TacpErr;
-use crate::SString;
+use crate::{TacpServerError, SString};
 use std::{net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs}, path::PathBuf, str::FromStr};
 use regex::Regex;
 
@@ -71,7 +70,7 @@ pub(crate) enum ACLActions {
     Allow,
 }
 impl TryFrom<&str> for ACLActions {
-    type Error = TacpErr;
+    type Error = TacpServerError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.to_lowercase();
@@ -80,7 +79,7 @@ impl TryFrom<&str> for ACLActions {
             "defer" => Self::Defer,
             "deny" => Self::Deny,
             "permit" | "allow" => Self::Allow,
-            _ => { return Err(TacpErr::ParseError(format!("ACLAction should be one of default, defer, deny, permit, allow. Got: {value}"))); }
+            _ => { return Err(TacpServerError::ParseError(format!("ACLAction should be one of default, defer, deny, permit, allow. Got: {value}"))); }
         })
     }
 }
@@ -99,7 +98,7 @@ enum SyslogTransport {
 }
 
 impl TryFrom<&str> for SyslogTransport {
-    type Error = TacpErr;
+    type Error = TacpServerError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if value.eq_ignore_ascii_case("tcp") {
@@ -109,7 +108,7 @@ impl TryFrom<&str> for SyslogTransport {
             return Ok(Self::UDP);
         }
         else {
-            return Err(TacpErr::ParseError(format!("SyslogTransport must be tcp or udp. Got: {value}")))
+            return Err(TacpServerError::ParseError(format!("SyslogTransport must be tcp or udp. Got: {value}")))
         }
     }
 }
@@ -140,7 +139,7 @@ pub enum AuthenTarget {
 }
 
 impl TryFrom<&str> for AuthenTarget {
-    type Error = TacpErr;
+    type Error = TacpServerError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Some((u_or_g, target)) = value.split_once(' ') {
@@ -151,9 +150,9 @@ impl TryFrom<&str> for AuthenTarget {
                 return Ok(AuthenTarget::User(target.to_owned()))
             }
             else {
-                return Err(TacpErr::ParseError(format!("AuthenTarget must start with group or user. Got {u_or_g}")));
+                return Err(TacpServerError::ParseError(format!("AuthenTarget must start with group or user. Got {u_or_g}")));
             }
         }
-        Err(TacpErr::ParseError("Malformed AuthenTarget. No separator.".to_owned()))
+        Err(TacpServerError::ParseError("Malformed AuthenTarget. No separator.".to_owned()))
     }
 }
