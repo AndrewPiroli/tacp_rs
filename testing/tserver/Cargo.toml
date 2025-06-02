@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-tacp = { path = "../tacp", features = ["dst-construct"] }
+tacp = { path = "../../tacp", features = ["dst-construct"] }
 tokio = { version = "~1.44.2", default-features = false, features = ["net", "rt", "io-util", "fs"] }
 hexdump = { version = "~0.1.2", default-features = false }
 smallvec = { version = "~1.15.0", default-features = false, features = ["write", "union"] }

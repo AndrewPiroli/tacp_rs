@@ -9,15 +9,15 @@
 			"name": "core"
 		},
 		{
-			"path": "./tserver",
+			"path": "testing/tserver",
 			"name": "server"
 		},
 		{
-			"path": "./tclient",
+			"path": "testing/tclient",
 			"name": "client"
 		},
 		{
-			"path": "./ttest",
+			"path": "testing/ttest",
 			"name": "testing"
 		}
 	],
