@@ -2,8 +2,7 @@
 //!
 //! TACACS+ values are stringly typed. This module attempts to parse things in a more reasonable
 //! way while still following the RFC
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::string::String;
 use core::net::IpAddr;
 
 use crate::TacpErr;
@@ -59,6 +58,30 @@ impl<'a> Value<'a> {
     }
     pub fn is_empty(&self) -> bool {
         self == &Value::Empty
+    }
+}
+
+impl<'a> core::fmt::Display for Value<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Value::Numeric(num) => {
+                let mut buf = ryu::Buffer::new();
+                f.write_str(buf.format(*num))
+            },
+            Value::Boolean(tf) => {
+                match tf {
+                    true => f.write_str("true"),
+                    false => f.write_str("false"),
+                }
+            },
+            Value::IPAddr(ip) => {
+                write!(f, "{}", ip)
+            },
+            Value::Str(s) => {
+                f.write_str(s)
+            },
+            Value::Empty => {Ok(())},
+        }
     }
 }
 
@@ -118,24 +141,16 @@ impl<'a> TryFrom<&'a String> for ArgValPair<'a, 'a> {
     }
 }
 
-impl<'a, 'b> ArgValPair<'a, 'b> {
-    pub fn to_vec(&self) -> Vec<u8> {
-        let mut res = Vec::with_capacity(256);
-        res.extend(self.argument.as_bytes());
+impl<'a, 'b> core::fmt::Display for ArgValPair<'a, 'b> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.argument)?;
         if self.optional {
-            res.push(b'*');
+            f.write_str("*")?;
         }
         else {
-            res.push(b'=');
+            f.write_str("=")?;
         }
-        match &self.value {
-            Value::Numeric(num) => {res.extend(num.to_string().as_bytes());},
-            Value::Boolean(tf) => {res.extend(tf.to_string().as_bytes());},
-            Value::IPAddr(ip) => {res.extend(ip.to_string().as_bytes());},
-            Value::Str(s) => {res.extend(s.as_bytes());},
-            Value::Empty => {},
-        }
-        res
+        write!(f, "{}", self.value)
     }
 }
 

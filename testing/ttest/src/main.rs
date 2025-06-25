@@ -24,6 +24,7 @@ fn get_tests() -> Vec<Test> {
         Test { name: "1st Party Command Authorization 1", func: test_author_success },
         Test { name: "1st Party Command Authorization 2", func: test_author_fail },
         Test { name: "1st Party Accounting 1", func: test_acct_success },
+        Test { name: "ArgValParser Tests", func: test_avp_parse_and_fmt },
         // Add more tests here
     ]
 }

@@ -10,6 +10,7 @@ md5 = { package = "md-5", version = "~0.10.6", default-features = false }
 zerocopy = { version = "~0.8.25", default-features = false }
 zerocopy-derive = { version = "~0.8.25", default-features = false }
 itoa = { version = "~1.0.15", default-features = false }
+ryu = { version = "~1.0.20", default-features = false, features = ["small"] }
 
 [features]
 dst-construct = []
