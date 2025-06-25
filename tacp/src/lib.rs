@@ -669,7 +669,7 @@ impl AuthorRequestPacket {
         }
         Some(&self.varidata[skip..(skip+arg_len)])
     }
-    pub fn iter_args(&self) -> ArgValPairIter {
+    pub fn iter_args(&self) -> ArgValPairIter<'_> {
         let lengths_range = 0..(self.arg_cnt as usize);
         let data_range_base = 
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
@@ -823,7 +823,7 @@ impl AuthorReplyPacket {
         }
         Some(&self.varidata[skip..(skip+arg_len)])
     }
-    pub fn iter_args(&self) -> ArgValPairIter {
+    pub fn iter_args(&self) -> ArgValPairIter<'_> {
         let lengths_range = 0..(self.arg_cnt as usize);
         let data_range_base = 
             self.arg_cnt as usize + self.server_msg_len.get() as usize + self.data_len.get() as usize;
@@ -979,7 +979,7 @@ impl AcctRequestPacket {
     pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
         self.inner.get_raw_argvalpair(idx)
     }
-    pub fn iter_args(&self) -> ArgValPairIter {
+    pub fn iter_args(&self) -> ArgValPairIter<'_> {
         self.inner.iter_args()
     }
     pub fn len(&self) -> usize {
