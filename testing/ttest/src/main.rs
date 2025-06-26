@@ -31,11 +31,18 @@ fn get_tests() -> Vec<Test> {
 
 #[cfg(miri)]
 fn main() -> Result<(), Box<dyn Error>> {
+    use firstparty_integration::test_avp_parse_and_fmt;
     if pcap::check_pcap() {
         println!("PCAP Replay Test - PASS");
     }
     else {
         println!("PCAP Replay Test - FAIL");
+    }
+    if test_avp_parse_and_fmt() {
+        println!("ArgValParser Tests - PASS");
+    }
+    else {
+        println!("ArgValParser Tests - FAIL");
     }
     Ok(())
 }
