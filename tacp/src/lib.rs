@@ -23,7 +23,12 @@ pub mod argvalpair;
 // * All length values are unsigned and in network byte order.
 
 /// TACACS+ Header Version Field
-
+///
+/// The TACACS+ protocol is versioned to allow revisions while maintaining backwards compatibility. The version number is in every packet header.
+/// The changes between minor_version 0 and 1 apply only to the authentication process, and all deal with the way that Challenge Handshake Authentication Protocol (CHAP)
+/// and Password Authentication Protocol (PAP) authentications are handled.
+/// PAP, CHAP, and MS-CHAP login use minor_version 1. The normal exchange is a single START packet from the client and a single REPLY from the server.
+/// All authorization and accounting and ASCII authentication use minor_version 0.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned)]
 pub enum Version {
