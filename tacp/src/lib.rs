@@ -32,13 +32,6 @@ pub enum Version {
 }
 
 
-/// Currently the only defined TACACS+ major version.
-pub const MAJOR_VER: u8 = 0xc;
-/// TACACS+ minor version 0 aka \"default\". Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
-pub const MINOR_VER_DEFAULT: u8 = 0x0;
-/// TACACS+ minor version 1. Differences specificed in the RFC section 5.4.1 \"Version Behavior\"
-pub const MINOR_VER_ONE: u8 = 0x1;
-
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned)]
 /// All TACACS+ packets are one of the following 3 types
