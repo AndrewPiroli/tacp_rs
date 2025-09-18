@@ -56,35 +56,30 @@ use md5::{digest::core_api::CoreWrapper, Digest, Md5, Md5Core};
 
 
 /// Iterator that generates the pseudo random PAD for obfuscation of TACACS+ packets
-#[repr(C, align(32))]
 pub struct TacacsMd5Pad<'a> {
-    session_id: [u8; 4],
-    ver_plus_seq: [u8; 2],
-    remaining: u32,
     shared_secret: &'a[u8],
+    header_data: [u8; 6], // idx 0-3 session id; idx 4 version, idx 5 sequence no
+    remaining: u32,
     md5_state: CoreWrapper<Md5Core>,
     md5_buf: [u8; 16],
     buf_ptr: u8,
 }
 impl<'a> TacacsMd5Pad<'a> {
-    #[allow(clippy::zero_prefixed_literal, clippy::identity_op)]
     pub fn new(header: &PacketHeader, shared_secret: &'a [u8]) -> Self {
         let mut s = TacacsMd5Pad {
-            session_id: [0; 4],
-            ver_plus_seq: [0;2],
-            remaining: 0,
             shared_secret,
+            header_data: [0; 6],
+            remaining: header.length.get(),
             md5_state: Md5::new(),
             md5_buf: [0; 16],
             buf_ptr: 16,
         };
-        s.remaining = header.length.get();
-        s.session_id = header.session_id.to_bytes();
-        s.ver_plus_seq[0] = header.version as u8;
-        s.ver_plus_seq[1] = header.seq_no;
-        s.md5_state.update(s.session_id.iter());
+        s.header_data[0..4].copy_from_slice(&header.session_id.to_bytes());
+        s.header_data[4] = header.version as u8;
+        s.header_data[5] = header.seq_no;
+        s.md5_state.update(&s.header_data[0..4]);
         s.md5_state.update(shared_secret);
-        s.md5_state.update(s.ver_plus_seq.iter());
+        s.md5_state.update(&s.header_data[4..6]);
         s.md5_state.finalize_into_reset((&mut s.md5_buf).into());
         s
     }
@@ -103,9 +98,9 @@ impl Iterator for TacacsMd5Pad<'_> {
             self.remaining -= 1;
         }
         else {
-            self.md5_state.update(self.session_id.iter());
+            self.md5_state.update(&self.header_data[0..4]);
             self.md5_state.update(self.shared_secret);
-            self.md5_state.update(self.ver_plus_seq.iter());
+            self.md5_state.update(&self.header_data[4..6]);
             self.md5_state.update(self.md5_buf.iter());
             self.md5_state.finalize_into_reset((&mut self.md5_buf).into());
             self.remaining -= 1;
