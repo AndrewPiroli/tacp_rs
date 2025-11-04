@@ -1,4 +1,4 @@
-# A TACACS+ Protocol Parser and Server.
+# An implementations of the TACACS+ Protocol in Rust.
 
 Current status: **Alpha**
 
@@ -8,9 +8,9 @@ My style is to avoid external dependencies when reasonable, I am not afraid of n
 
 ## Main crate: tacp
 
-Contains the protocol definitions, a zero-copy parser/decoder, and an expiramental encoder. `no_std` always, but does require `alloc` and a nightly compiler.
+Contains the protocol definitions, a zero-copy parser/decoder, and an experimental encoder. `no_std` always, but does require `alloc` and a nightly compiler.
 
-The encoding side of things is new and expiramental, so it is behind a feature flag (`dst-construct`) and all methods are marked unsafe.
+The encoding side of things is new and experimental, so it is behind a feature flag (`dst-construct`) and all methods are marked unsafe.
 
 RFC Compliance Status: **Mostly compliant** - where it counts at least.
 
@@ -37,19 +37,22 @@ ROADMAP:
     - [ ] Direct fuzzing
     - [x] Use miri
 
-## tserver - Basic testing server
+## Testing infrastructure
+
+### tserver - Basic testing server
 
 A TACACS+ server with enough features to test most client operations.
 
-## tclient - Basic testing client
+### tclient - Basic testing client
 
 A basic TACACS+ client that can make requests to a server.
 
-## ttest - A WIP testing system
+### ttest - A WIP testing system
 
 Current features:
  - runs the test client and server against each other.
  - Reads pcap files from the pcap directory and ensures all TACACS+ packets within can be parsed.
+ - Supports running under miri with a reduced set of tests
 
 Other projects we can test interop with in the future:
 
