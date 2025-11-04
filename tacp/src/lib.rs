@@ -248,8 +248,8 @@ impl AuthenStartPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -384,8 +384,8 @@ impl AuthenReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -502,8 +502,8 @@ impl AuthenContinuePacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -694,8 +694,8 @@ impl AuthorRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -848,8 +848,8 @@ impl AuthorReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -1001,8 +1001,8 @@ impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -1182,8 +1182,8 @@ impl AcctReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
-        let (thinptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(thinptr as *mut () as *mut u8, real_len), allocator) }
+        let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
 }
 
