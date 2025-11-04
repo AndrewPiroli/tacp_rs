@@ -65,17 +65,16 @@ impl<'a> core::fmt::Display for Value<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Value::Numeric(num) => {
-                let mut buf = ryu::Buffer::new();
-                f.write_str(buf.format(*num))
+                write!(f, "{}", num)
+            },
+            Value::IPAddr(ip) => {
+                write!(f, "{}", ip)
             },
             Value::Boolean(tf) => {
                 match tf {
                     true => f.write_str("true"),
                     false => f.write_str("false"),
                 }
-            },
-            Value::IPAddr(ip) => {
-                write!(f, "{}", ip)
             },
             Value::Str(s) => {
                 f.write_str(s)

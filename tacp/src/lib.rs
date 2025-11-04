@@ -1221,12 +1221,7 @@ impl core::fmt::Display for TacpErr {
                 f.write_str(d)
             },
             TacpErr::BufferSize((required, given)) => {
-                let mut req_buf = itoa::Buffer::new();
-                let mut given_buf = req_buf.clone();
-                f.write_str("Buffer Size error: we need ")?;
-                f.write_str(req_buf.format(*required))?;
-                f.write_str(" bytes for this operation but were provided only ")?;
-                f.write_str(given_buf.format(*given))
+                write!(f, "Buffer Size error: we need {required} bytes for this operation but were provided only {given}")
             }
             TacpErr::Utf8ConversionError(inner) => {
                 f.write_str("Failure in UTF-8 conversion: ")?;
