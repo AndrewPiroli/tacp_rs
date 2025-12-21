@@ -11,6 +11,7 @@ use alloc::alloc::Allocator;
 
 use argvalpair::ArgValPairIter;
 
+use bitflags::bitflags;
 use zerocopy::*;
 use zerocopy_derive::*;
 pub use zerocopy::byteorder::network_endian::{U32, U16};
@@ -79,22 +80,25 @@ pub enum PacketType {
 /// The sequence number must never wrap, i.e., if the sequence number 2^8 - 1 is ever reached, that session must terminate and be restarted with a sequence number of 1.
 pub type SeqNo = u8;
 
-/// This field contains various bitmapped flags
-/// ...
-/// TAC_PLUS_UNENCRYPTED_FLAG := 0x01
-/// ...
-/// TAC_PLUS_SINGLE_CONNECT_FLAG := 0x04
-/// ...
-/// All other bits **MUST** be ignored when reading, and SHOULD be set to zero when writing.
-pub type Flags = u8;
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, FromBytes, IntoBytes, Immutable, Unaligned)]
+/// This field contains various bitmapped flags.
+/// All bits not defined (currently UNENCRYPTED and SINGLE_CONNECT) **MUST** be ignore when reading, and **SHOULD** be set to zero when writing
+pub struct Flags(pub u8);
 
-/// This flag indicates that the sender did not obfuscate the body of the packet. This option **MUST** NOT be used in production
-/// This flag **SHOULD** be clear in all deployments. Modern network traffic tools support encrypted traffic when configured with
-/// the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
-pub const UNENCRYPTED_FLAG: u8 = 0x1;
-
-/// This flag is used to allow a client and server to negotiate "Single Connection Mode"
-pub const SINGLE_CONNECT_FLAG: u8 = 0x4;
+bitflags! {
+    impl Flags: u8 {
+        /// This flag indicates that the sender did not obfuscate the body of the packet. According to the current RFC, this option **MUST** NOT be used in production
+        /// This flag **SHOULD** be clear in all deployments. Modern network traffic tools support encrypted traffic when configured with
+        /// the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
+        ///
+        /// However, the current RFC was written before TLS was added as a possible transport. In a deployment where the transport is secured via TLS, this flag is
+        /// cleared (by convention) to indicate that the server software should not also apply the protocol's built in MD5 based obfuscation as it is redundant in this scenario.
+        const UNENCRYPTED = 0x1;
+        /// This flag is used to allow a client and server to negotiate "Single Connection Mode"
+        const SINGLE_CONNECT = 0x4;
+    }
+}
 
 /// The Id for this TACACS+ session. This field does not change for
 /// the duration of the TACACS+ session. This number **MUST** be generated

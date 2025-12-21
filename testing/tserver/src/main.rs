@@ -245,7 +245,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::AUTHEN,
                     seq_no: cstate.seq_no,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
@@ -269,7 +269,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::AUTHEN,
                     seq_no: cstate.seq_no + 1,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
@@ -282,7 +282,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::AUTHOR,
                     seq_no: cstate.seq_no + 1,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
@@ -302,7 +302,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::AUTHOR,
                     seq_no: cstate.seq_no + 1,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
@@ -315,7 +315,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::ACCT,
                     seq_no: cstate.seq_no + 1,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
@@ -334,7 +334,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     version: parsed_header.version,
                     ty: PacketType::ACCT,
                     seq_no: cstate.seq_no + 1,
-                    flags: 0,
+                    flags: Flags(0),
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };

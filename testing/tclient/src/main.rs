@@ -76,7 +76,7 @@ fn main() {
                 blank.as_bytes(),
             blank.as_bytes(),
                 blank.as_bytes()).unwrap())};
-            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, 0, session_id, body.len() as u32);
+            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, Flags(0), session_id, body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AuthenReply;
             body
@@ -95,7 +95,7 @@ fn main() {
                 blank.as_bytes(),
             blank.as_bytes(),
                 password.as_bytes()).unwrap())};
-            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, 0, session_id, body.len() as u32);
+            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, seq_no, Flags(0), session_id, body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AuthenReply;
             body
@@ -121,7 +121,7 @@ fn main() {
             let body = unsafe {
                 AuthorRequestPacket::boxed_to_bytes(AuthorRequestPacket::new(AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced).unwrap())
             };
-            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHOR, seq_no, 0, session_id,body.len() as u32);
+            header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHOR, seq_no, Flags(0), session_id,body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AuthorReply;
             body
@@ -147,7 +147,7 @@ fn main() {
             let body = unsafe {
                 AcctRequestPacket::boxed_to_bytes(AcctRequestPacket::new(AcctFlags::RecordStop, AuthorMethod::TACACSPLUS, level, AuthenType::ASCII, AuthenService::LOGIN, username.as_bytes(), blank.as_bytes(), blank.as_bytes(), &sliced).unwrap())
             };
-            header = PacketHeader::new(Version::VersionDefault, PacketType::ACCT, seq_no, 0, session_id, body.len() as u32);
+            header = PacketHeader::new(Version::VersionDefault, PacketType::ACCT, seq_no, Flags(0), session_id, body.len() as u32);
             seq_no += 1;
             expected_reply = NextPacket::AcctReply;
             body
@@ -314,7 +314,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             let mut reply_body = unsafe {
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, user_msg.as_bytes(), blank.as_bytes()).unwrap())
             };
-            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
+            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
@@ -339,7 +339,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             let mut reply_body = unsafe {
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, username.as_bytes(), blank.as_bytes()).unwrap())
             };
-            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
+            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
@@ -364,7 +364,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             let mut reply_body = unsafe {
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, pass.as_bytes(), blank.as_bytes()).unwrap())
             };
-            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, 0, session_id, reply_body.len() as u32);
+            let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
