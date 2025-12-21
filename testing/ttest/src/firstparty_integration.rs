@@ -157,6 +157,45 @@ pub fn test_avp_parse_and_fmt() -> bool {
     true
 }
 
+/// This test makes sure you can't construct a Packet with components too large to have their length encoded properly for that packet type.
+/// Not run under miri currently because it reports memory leaks ??
+pub fn packet_data_overflow() -> bool { unsafe {
+    static empty: &[u8;0] = &[0;0];
+    static big8: &[u8;266] = &[0;266];
+    static big16: &[u8;65536] = &[0;65536];
+    use tacp::*;
+    [
+        // AuthenStart - max u8 for user, port, rem_addr, data
+        AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, big8, empty, empty, empty).is_err(),
+        AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, empty, big8, empty, empty).is_err(),
+        AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, empty, empty, big8, empty).is_err(),
+        AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, empty, empty, empty, big8).is_err(),
+        // AuthenReply u16 serv_msg, data
+        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, 0, big16, empty).is_err(),
+        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, 0, empty, big16).is_err(),
+        // AuthenContinue u16 user_msg, data
+        AuthenContinuePacket::new(0, big16, empty).is_err(),
+        AuthenContinuePacket::new(0, empty, big16).is_err(),
+        // Author Request u8 user, port, rem_addr, args
+        AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, big8, empty, empty, &[empty]).is_err(),
+        AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, big8, empty, &[empty]).is_err(),
+        AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, empty, big8, &[empty]).is_err(),
+        AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, empty, empty, &[big8]).is_err(),
+        // Author Reply u16 server_msg, data u8 args
+        AuthorReplyPacket::new(AuthorStatus::ERROR, &[empty], big16, empty).is_err(),
+        AuthorReplyPacket::new(AuthorStatus::ERROR, &[empty], empty, big16).is_err(),
+        AuthorReplyPacket::new(AuthorStatus::ERROR, &[big8], empty, empty).is_err(),
+        // Acct Request u8 user, port, rem_addr, args
+        AcctRequestPacket::new(AcctFlags::RecordStart, AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, big8, empty, empty, &[empty]).is_err(),
+        AcctRequestPacket::new(AcctFlags::RecordStart, AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, big8, empty, &[empty]).is_err(),
+        AcctRequestPacket::new(AcctFlags::RecordStart, AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, empty, big8, &[empty]).is_err(),
+        AcctRequestPacket::new(AcctFlags::RecordStart, AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, empty, empty, &[big8]).is_err(),
+        // Acct Reply u16 server_msg, data
+        AcctReplyPacket::new(AcctStatus::SUCCESS, big16, empty).is_err(),
+        AcctReplyPacket::new(AcctStatus::SUCCESS, empty, big16).is_err(),
+    ].iter().all(|x|*x)
+}}
+
 /*
 fn has_python_client() -> bool {
     which::which("tacacs_client").is_ok()

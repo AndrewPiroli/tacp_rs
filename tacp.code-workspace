@@ -33,7 +33,7 @@
 			"**/target": true,
 		},
 		"debug.allowBreakpointsEverywhere": true,
-		"rust-analyzer.cargo.features": ["dst-construct"],
+		"rust-analyzer.cargo.features": "all",
 		"rust-analyzer.cargo.cfgs": ["debug_assertions"],
 		"terminal.integrated.cwd": "${workspaceFolder}"
 	},
