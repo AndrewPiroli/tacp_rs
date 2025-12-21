@@ -289,14 +289,14 @@ impl AuthenStartPacket {
         *mem.add(6) = rem_addr.len() as u8;
         *mem.add(7) = data.len() as u8;
         let mut varidata_ptr = 8_usize;
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as usize);
-        varidata_ptr += user.len() as usize;
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as usize);
-        varidata_ptr += port.len() as usize;
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as usize);
-        varidata_ptr += rem_addr.len() as usize;
-        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len() as usize);
-        varidata_ptr += data.len() as usize;
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len());
+        varidata_ptr += user.len();
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len());
+        varidata_ptr += port.len();
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len());
+        varidata_ptr += rem_addr.len();
+        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len());
+        varidata_ptr += data.len();
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }}
@@ -421,10 +421,10 @@ impl AuthenReplyPacket {
         *mem.add(4) = data_len_bytes[0];
         *mem.add(5) = data_len_bytes[1];
         let start = 6;
-        let end = start + serv_msg.len() as usize;
+        let end = start + serv_msg.len();
         copy_nonoverlapping(serv_msg.as_ptr(), mem.add(start), end-start);
         let start = end;
-        let end = start + data.len() as usize;
+        let end = start + data.len();
         copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
         debug_assert!(end == len);
         Ok(())
@@ -532,10 +532,10 @@ impl AuthenContinuePacket {
         *mem.add(3) = data_len_bytes[1];
         *mem.add(4) = flags;
         let start = 5;
-        let end = 5+user_msg.len() as usize;
+        let end = 5+user_msg.len();
         copy_nonoverlapping(user_msg.as_ptr(), mem.add(start), end-start);
         let start = end;
-        let end = start + data.len() as usize;
+        let end = start + data.len();
         copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
         debug_assert!(end == len);
         Ok(())
@@ -717,20 +717,20 @@ impl AuthorRequestPacket {
         *mem.add(6) = rem_addr.len() as u8;
         *mem.add(7) = args.len() as u8;
         let mut varidata_ptr = 8usize;
-        for arg_n in 0..(args.len() as usize) {
+        for arg_n in 0..(args.len()) {
             max!(u8, args[arg_n]);
             let arglen = args[arg_n].len();
             *mem.add(varidata_ptr) = arglen as u8;
             varidata_ptr += 1;
         }
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as usize);
-        varidata_ptr += user.len() as usize;
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as usize);
-        varidata_ptr += port.len() as usize;
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as usize);
-        varidata_ptr += rem_addr.len() as usize;
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len());
+        varidata_ptr += user.len();
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len());
+        varidata_ptr += port.len();
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len());
+        varidata_ptr += rem_addr.len();
         for arg in args.iter() {
-            let arg_len = arg.len() as usize;
+            let arg_len = arg.len();
             copy_nonoverlapping(arg.as_ptr(), mem.add(varidata_ptr), arg_len);
             varidata_ptr += arg_len;
         }
@@ -1118,7 +1118,7 @@ impl AcctReplyPacket {
         max!(u16,  server_msg, data);
         let len = mem.1;
         let mem = mem.0;
-        let required_mem = 5 + server_msg.len() as usize + data.len() as usize;
+        let required_mem = 5 + server_msg.len() + data.len();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -1132,11 +1132,11 @@ impl AcctReplyPacket {
         *mem.add(3) = data_len_bytes[1];
         *mem.add(4) = status as u8;
         let mut start = 5usize;
-        let mut end = start+server_msg.len() as usize;
-        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len() as usize);
+        let mut end = start+server_msg.len();
+        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len());
         start = end;
-        end = start + data.len() as usize;
-        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len() as usize);
+        end = start + data.len();
+        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len());
         debug_assert!(end == required_mem);
         Ok(())
     }}
