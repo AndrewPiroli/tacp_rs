@@ -4,8 +4,11 @@
 #![no_std]
 extern crate alloc;
 
+#[cfg(feature = "dst-construct")]
 use alloc::boxed::Box;
+#[cfg(feature = "dst-construct")]
 use alloc::alloc::Allocator;
+
 use argvalpair::ArgValPairIter;
 
 use zerocopy::*;
@@ -15,6 +18,24 @@ pub use zerocopy::{IntoBytes, TryFromBytes, FromBytes};
 
 pub mod obfuscation;
 pub mod argvalpair;
+
+#[cfg(feature = "dst-construct")]
+macro_rules! max {
+    ($maxty:ty, $($val:expr),+) => {
+        $(
+            {
+                if ($val.len()) > <$maxty>::MAX as usize {
+                    Err(TacpErr::ParseError(concat!(
+                        stringify!($val),
+                        " can not fit in ",
+                        stringify!($maxty)
+                    )))
+                }
+                else { Ok(()) }?
+            }
+        )+
+    };
+}
 
 //https://datatracker.ietf.org/doc/html/rfc8907
 // The following general rules apply to all TACACS+ packet types:
@@ -259,6 +280,7 @@ impl AuthenStartPacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u8, user, port, rem_addr, data);
         let len = mem.1;
         let mem = mem.0;
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + data.len();
@@ -274,14 +296,14 @@ impl AuthenStartPacket {
         *mem.add(6) = rem_addr.len() as u8;
         *mem.add(7) = data.len() as u8;
         let mut varidata_ptr = 8_usize;
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as u8 as usize);
-        varidata_ptr += user.len() as u8 as usize;
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as u8 as usize);
-        varidata_ptr += port.len() as u8 as usize;
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as u8 as usize);
-        varidata_ptr += rem_addr.len() as u8 as usize;
-        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len() as u8 as usize);
-        varidata_ptr += data.len() as u8 as usize;
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as usize);
+        varidata_ptr += user.len() as usize;
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as usize);
+        varidata_ptr += port.len() as usize;
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as usize);
+        varidata_ptr += rem_addr.len() as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len() as usize);
+        varidata_ptr += data.len() as usize;
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }}
@@ -395,6 +417,7 @@ impl AuthenReplyPacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u16, serv_msg, data);
         let len = mem.1;
         let mem = mem.0;
         let required_mem = 6+serv_msg.len()+data.len();
@@ -412,10 +435,10 @@ impl AuthenReplyPacket {
         *mem.add(4) = data_len_bytes[0];
         *mem.add(5) = data_len_bytes[1];
         let start = 6;
-        let end = start + serv_msg.len() as u16 as usize;
+        let end = start + serv_msg.len() as usize;
         copy_nonoverlapping(serv_msg.as_ptr(), mem.add(start), end-start);
         let start = end;
-        let end = start + data.len() as u16 as usize;
+        let end = start + data.len() as usize;
         copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
         debug_assert!(end == len);
         Ok(())
@@ -513,6 +536,7 @@ impl AuthenContinuePacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), flags: u8, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u16, user_msg, data);
         let len = mem.1;
         let mem = mem.0;
         let required_mem = 5 + user_msg.len() + data.len();
@@ -529,10 +553,10 @@ impl AuthenContinuePacket {
         *mem.add(3) = data_len_bytes[1];
         *mem.add(4) = flags;
         let start = 5;
-        let end = 5+user_msg.len() as u16 as usize;
+        let end = 5+user_msg.len() as usize;
         copy_nonoverlapping(user_msg.as_ptr(), mem.add(start), end-start);
         let start = end;
-        let end = start + data.len() as u16 as usize;
+        let end = start + data.len() as usize;
         copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
         debug_assert!(end == len);
         Ok(())
@@ -705,6 +729,7 @@ impl AuthorRequestPacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u8, user,  port, rem_addr, args);
         let len = mem.1;
         let mem = mem.0;
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
@@ -720,18 +745,20 @@ impl AuthorRequestPacket {
         *mem.add(6) = rem_addr.len() as u8;
         *mem.add(7) = args.len() as u8;
         let mut varidata_ptr = 8usize;
-        for arg_n in 0..(args.len() as u8 as usize) {
-            *mem.add(varidata_ptr) = args[arg_n].len() as u8;
+        for arg_n in 0..(args.len() as usize) {
+            max!(u8, args[arg_n]);
+            let arglen = args[arg_n].len();
+            *mem.add(varidata_ptr) = arglen as u8;
             varidata_ptr += 1;
         }
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as u8 as usize);
-        varidata_ptr += user.len() as u8 as usize;
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as u8 as usize);
-        varidata_ptr += port.len() as u8 as usize;
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as u8 as usize);
-        varidata_ptr += rem_addr.len() as u8 as usize;
+        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len() as usize);
+        varidata_ptr += user.len() as usize;
+        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len() as usize);
+        varidata_ptr += port.len() as usize;
+        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len() as usize);
+        varidata_ptr += rem_addr.len() as usize;
         for arg in args.iter() {
-            let arg_len = arg.len() as u8 as usize;
+            let arg_len = arg.len() as usize;
             copy_nonoverlapping(arg.as_ptr(), mem.add(varidata_ptr), arg_len);
             varidata_ptr += arg_len;
         }
@@ -859,6 +886,8 @@ impl AuthorReplyPacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u8, args);
+        max!(u16, server_msg, data);
         let len = mem.1;
         let mem = mem.0;
         let required_mem = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
@@ -884,6 +913,7 @@ impl AuthorReplyPacket {
         let mut endptr = data_msg_end;
         for (idx, arg) in args.iter().enumerate() {
             let arg = *arg;
+            max!(u8, arg);
             let len = arg.len();
             *mem.add(6 + idx) = len as u8;
             copy_nonoverlapping(arg.as_ptr(), mem.add(endptr), len);
@@ -1127,9 +1157,10 @@ impl AcctReplyPacket {
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
         use core::ptr::copy_nonoverlapping;
+        max!(u16,  server_msg, data);
         let len = mem.1;
         let mem = mem.0;
-        let required_mem = 5 + server_msg.len() as u16 as usize + data.len() as u16 as usize;
+        let required_mem = 5 + server_msg.len() as usize + data.len() as usize;
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -1143,11 +1174,11 @@ impl AcctReplyPacket {
         *mem.add(3) = data_len_bytes[1];
         *mem.add(4) = status as u8;
         let mut start = 5usize;
-        let mut end = start+server_msg.len() as u16 as usize;
-        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len() as u16 as usize);
+        let mut end = start+server_msg.len() as usize;
+        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len() as usize);
         start = end;
-        end = start + data.len() as u16 as usize;
-        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len() as u16 as usize);
+        end = start + data.len() as usize;
+        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len() as usize);
         debug_assert!(end == required_mem);
         Ok(())
     }}
