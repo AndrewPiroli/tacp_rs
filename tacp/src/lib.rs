@@ -259,13 +259,6 @@ impl AuthenStartPacket {
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
     }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -396,13 +389,6 @@ impl AuthenReplyPacket {
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
     }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -514,13 +500,6 @@ impl AuthenContinuePacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len())}
-    }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
@@ -708,13 +687,6 @@ impl AuthorRequestPacket {
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
     }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -865,13 +837,6 @@ impl AuthorReplyPacket {
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
     }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -1020,13 +985,6 @@ impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
@@ -1202,13 +1160,6 @@ impl AcctReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn as_bytes(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
-    /// Cast to a byte slice.
-    /// # Safety
-    /// 
-    /// Mutable references must not alias, the caller must dispose of the original reference immediately on invocation.
-    pub unsafe fn decay(the: &mut Self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(the as *mut Self as *mut u8, the.len()) }
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
