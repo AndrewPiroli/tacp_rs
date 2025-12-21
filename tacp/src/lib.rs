@@ -263,7 +263,7 @@ impl AuthenStartPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -393,7 +393,7 @@ impl AuthenReplyPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -505,7 +505,7 @@ impl AuthenContinuePacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -691,7 +691,7 @@ impl AuthorRequestPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -841,7 +841,7 @@ impl AuthorReplyPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -990,7 +990,7 @@ impl AcctRequestPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
     /// 
@@ -1165,7 +1165,7 @@ impl AcctReplyPacket {
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
-        unsafe { Box::from_raw_in(core::slice::from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
 }
 
