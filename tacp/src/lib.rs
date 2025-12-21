@@ -717,10 +717,10 @@ impl AuthorRequestPacket {
         *mem.add(6) = rem_addr.len() as u8;
         *mem.add(7) = args.len() as u8;
         let mut varidata_ptr = 8usize;
-        for arg_n in 0..(args.len()) {
-            max!(u8, args[arg_n]);
-            let arglen = args[arg_n].len();
-            *mem.add(varidata_ptr) = arglen as u8;
+        // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
+        for arg in args.iter() {
+            max!(u8, arg);
+            *mem.add(varidata_ptr) = arg.len() as u8;
             varidata_ptr += 1;
         }
         copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len());
