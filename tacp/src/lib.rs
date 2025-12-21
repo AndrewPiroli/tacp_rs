@@ -1,4 +1,4 @@
-#![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty)]
+#![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty, clippy::too_many_arguments)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![feature(ptr_metadata, allocator_api)]
 #![no_std]
@@ -1020,6 +1020,7 @@ impl AcctRequestPacket {
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
     }}
+    #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
