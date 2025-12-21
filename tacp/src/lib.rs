@@ -281,7 +281,7 @@ impl AuthenStartPacket {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem.add(0) = action as u8;
-        *mem.add(1) = priv_level as u8;
+        *mem.add(1) = priv_level;
         *mem.add(2) = authen_type as u8;
         *mem.add(3) = authen_service as u8;
         *mem.add(4) = user.len() as u8;
@@ -307,7 +307,7 @@ impl AuthenStartPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -436,7 +436,7 @@ impl AuthenReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, flags, serv_msg, data)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -547,7 +547,7 @@ impl AuthenContinuePacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, user_msg, data)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -709,7 +709,7 @@ impl AuthorRequestPacket {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
         *mem.add(0) = method as u8;
-        *mem.add(1) = priv_level as u8;
+        *mem.add(1) = priv_level;
         *mem.add(2) = authen_type as u8;
         *mem.add(3) = authen_svc as u8;
         *mem.add(4) = user.len() as u8;
@@ -744,7 +744,7 @@ impl AuthorRequestPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -894,7 +894,7 @@ impl AuthorReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, args, server_msg, data)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1015,7 +1015,7 @@ impl AcctRequestPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1147,7 +1147,7 @@ impl AcctReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, server_msg, data)?;
-        let fatref: &mut [u8] = core::mem::transmute(core::ptr::from_raw_parts_mut(ptr, len) as *mut [u8]);
+        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
