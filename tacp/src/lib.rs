@@ -1,6 +1,6 @@
 #![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty, clippy::too_many_arguments)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(ptr_metadata, allocator_api)]
+#![feature(allocator_api)]
 #![no_std]
 extern crate alloc;
 
@@ -311,7 +311,7 @@ impl AuthenStartPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -440,7 +440,7 @@ impl AuthenReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, flags, serv_msg, data)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -551,7 +551,7 @@ impl AuthenContinuePacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, user_msg, data)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -748,7 +748,7 @@ impl AuthorRequestPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -898,7 +898,7 @@ impl AuthorReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, args, server_msg, data)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1019,7 +1019,7 @@ impl AcctRequestPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1152,7 +1152,7 @@ impl AcctReplyPacket {
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         Self::initialize((ptr, len), status, server_msg, data)?;
-        let fatref: &mut [u8] = &mut *(core::ptr::from_raw_parts_mut(ptr, len));
+        let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
