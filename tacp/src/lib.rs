@@ -322,7 +322,10 @@ impl AuthenStartPacket {
         let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data)?;
+        if let Err(e) = Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -443,7 +446,10 @@ impl AuthenReplyPacket {
         let len = 6 + serv_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, flags, serv_msg, data)?;
+        if let Err(e) = Self::initialize((ptr, len), status, flags, serv_msg, data) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -566,7 +572,10 @@ impl AuthenContinuePacket {
         let len = 5 + user_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), flags, user_msg, data)?;
+        if let Err(e) = Self::initialize((ptr, len), flags, user_msg, data) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -775,7 +784,10 @@ impl AuthorRequestPacket {
         let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
+        if let Err(e) = Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -923,7 +935,10 @@ impl AuthorReplyPacket {
         let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, args, server_msg, data)?;
+        if let Err(e) = Self::initialize((ptr, len), status, args, server_msg, data) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -1042,7 +1057,10 @@ impl AcctRequestPacket {
         let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)?;
+        if let Err(e) = Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
@@ -1175,7 +1193,10 @@ impl AcctReplyPacket {
         let len = 5 + server_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        Self::initialize((ptr, len), status, server_msg, data)?;
+        if let Err(e) = Self::initialize((ptr, len), status, server_msg, data) {
+            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            return Err(e);
+        }
         let fatref = core::slice::from_raw_parts_mut(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);

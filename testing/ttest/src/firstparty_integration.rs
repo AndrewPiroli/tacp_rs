@@ -158,7 +158,6 @@ pub fn test_avp_parse_and_fmt() -> bool {
 }
 
 /// This test makes sure you can't construct a Packet with components too large to have their length encoded properly for that packet type.
-/// Not run under miri currently because it reports memory leaks ??
 pub fn packet_data_overflow() -> bool { unsafe {
     static empty: &[u8;0] = &[0;0];
     static big8: &[u8;266] = &[0;266];

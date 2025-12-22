@@ -46,13 +46,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     else {
         println!("ArgValParser Tests - FAIL");
     }
-    // Disabled because it reports a memory leak
-    // if packet_data_overflow() {
-        // println!("PacketData Overflow Tests - PASS");
-    // }
-    // else {
-        // println!("PacketData Overflow Tests - FAIL")
-    // }
+    if packet_data_overflow() {
+        println!("PacketData Overflow Tests - PASS");
+    }
+    else {
+        println!("PacketData Overflow Tests - FAIL")
+    }
     Ok(())
 }
 
