@@ -38,7 +38,12 @@ macro_rules! max {
     };
 }
 
-//https://datatracker.ietf.org/doc/html/rfc8907
+// Original protocol specification RFC 8907 https://datatracker.ietf.org/doc/html/rfc8907
+// * Explains data structures, protocol operation, and deployment guidelines.
+// Updated by RFC 9887 https://datatracker.ietf.org/doc/html/rfc9887
+// * Deprecates the obfuscation method in the orginal protocol and replaces it with TLS, provides updated deployment guidelines.
+//   Otherwise no protocol changes. So you will see quotes from original RFC used in most places throught the documentation of this crate.
+//
 // The following general rules apply to all TACACS+ packet types:
 // * To signal that any variable-length data fields are unused, the corresponding length values are set to zero. Such fields MUST be ignored, and treated as if not present.
 // * The lengths of data and message fields in a packet are specified by their corresponding length field (and are not null terminated).
@@ -88,12 +93,20 @@ pub struct Flags(pub u8);
 
 bitflags! {
     impl Flags: u8 {
-        /// This flag indicates that the sender did not obfuscate the body of the packet. According to the current RFC, this option **MUST** NOT be used in production
-        /// This flag **SHOULD** be clear in all deployments. Modern network traffic tools support encrypted traffic when configured with
-        /// the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
+        /// This flag indicates that the sender did not obfuscate the body of the packet. In modern deployments where TLS is used to secure the protocol,
+        /// the built in obfuscation is obsoleted
+        /// 
+        /// RFC 9887 §4
+        /// > Peers MUST NOT use obfuscation with TLS. A TACACS+ client initiating a TACACS+ TLS connection MUST
+        /// > set the TAC_PLUS_UNENCRYPTED_FLAG bit, thereby asserting that obfuscation is not used for the session.
+        /// > All subsequent packets MUST have the TAC_PLUS_UNENCRYPTED_FLAG bit set to 1
         ///
-        /// However, the current RFC was written before TLS was added as a possible transport. In a deployment where the transport is secured via TLS, this flag is
-        /// cleared (by convention) to indicate that the server software should not also apply the protocol's built in MD5 based obfuscation as it is redundant in this scenario.
+        /// For legacy deployments where TLS is not used, this flag should be cleared so the built in obfuscation method is used, as that is better than nothing.
+        /// 
+        /// RFC 8907 §4.1
+        /// > This option **MUST** NOT be used in production This flag **SHOULD** be clear in all deployments.
+        /// > Modern network traffic tools support encrypted traffic when configured with the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
+        ///
         const UNENCRYPTED = 0x1;
         /// This flag is used to allow a client and server to negotiate "Single Connection Mode"
         const SINGLE_CONNECT = 0x4;
