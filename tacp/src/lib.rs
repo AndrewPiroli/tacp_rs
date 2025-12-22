@@ -17,6 +17,7 @@ use zerocopy_derive::*;
 pub use zerocopy::byteorder::network_endian::{U32, U16};
 pub use zerocopy::{IntoBytes, TryFromBytes, FromBytes};
 
+#[cfg(feature = "obfuscation")]
 pub mod obfuscation;
 pub mod argvalpair;
 

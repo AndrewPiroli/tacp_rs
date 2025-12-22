@@ -1,6 +1,11 @@
+#![cfg(feature = "obfuscation")]
 //! TACACS+ Encryption/Obfuscation Algorithm
 //!
-//! RFC8907 Section 4.5
+//! This module provides an implementation of the obfuscation algorithm. Usage of this in modern production deployments
+//! is discouraged. RFC 9887 has updated the protocol to be secured at the transport layer via TLS 1.3 or later. TLS should
+//! be used wherever possible for security.
+//!
+//! The algorithm is described in RFC8907 Section 4.5 as follows:
 //!
 //! The body of packets may be obfuscated. The following sections describe the obfuscation method
 //! that is supported in the protocol. In "The Draft", this process was actually referred to as
