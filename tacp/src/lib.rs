@@ -274,10 +274,6 @@ impl AuthenStartPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthenStartPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
-    #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
@@ -397,10 +393,6 @@ impl AuthenReplyPacket {
 }
 #[cfg(feature = "dst-construct")]
 impl AuthenReplyPacket {
-    #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -724,10 +716,6 @@ impl AuthorRequestPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthorRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
-    #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
@@ -874,10 +862,6 @@ impl AuthorReplyPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthorReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
-    #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
@@ -1022,10 +1006,6 @@ impl AcctRequestPacket {
 }
 #[cfg(feature = "dst-construct")]
 impl AcctRequestPacket {
-    #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
@@ -1198,10 +1178,6 @@ impl AcctReplyPacket {
         Self::new_in(alloc::alloc::Global, status, server_msg, data)
     }}
 
-    #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len()) }
-    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         let real_len = s.len();
