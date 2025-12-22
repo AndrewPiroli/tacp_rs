@@ -1,6 +1,6 @@
 #![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty, clippy::too_many_arguments)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![feature(allocator_api)]
+#![feature(allocator_api, layout_for_ptr)]
 #![no_std]
 extern crate alloc;
 
@@ -275,8 +275,10 @@ impl AuthenStartPacket {
 impl AuthenStartPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -395,8 +397,10 @@ impl AuthenReplyPacket {
 impl AuthenReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -516,13 +520,11 @@ impl AuthenContinuePacket {
 #[cfg(feature = "dst-construct")]
 impl AuthenContinuePacket {
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub fn as_bytes(&self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, self.len())}
-    }
-    #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -717,8 +719,10 @@ impl AuthorRequestPacket {
 impl AuthorRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -863,8 +867,10 @@ impl AuthorReplyPacket {
 impl AuthorReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -1008,8 +1014,10 @@ impl AcctRequestPacket {
 impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
@@ -1180,8 +1188,10 @@ impl AcctReplyPacket {
 
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
+        use alloc::alloc::Layout;
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
+        unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
 }
