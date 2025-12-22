@@ -86,34 +86,6 @@ pub enum PacketType {
 /// The sequence number must never wrap, i.e., if the sequence number 2^8 - 1 is ever reached, that session must terminate and be restarted with a sequence number of 1.
 pub type SeqNo = u8;
 
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, FromBytes, IntoBytes, Immutable, Unaligned)]
-/// This field contains various bitmapped flags.
-/// All bits not defined (currently UNENCRYPTED and SINGLE_CONNECT) **MUST** be ignore when reading, and **SHOULD** be set to zero when writing
-pub struct Flags(pub u8);
-
-bitflags! {
-    impl Flags: u8 {
-        /// This flag indicates that the sender did not obfuscate the body of the packet. In modern deployments where TLS is used to secure the protocol,
-        /// the built in obfuscation is obsoleted
-        /// 
-        /// RFC 9887 §4
-        /// > Peers MUST NOT use obfuscation with TLS. A TACACS+ client initiating a TACACS+ TLS connection MUST
-        /// > set the TAC_PLUS_UNENCRYPTED_FLAG bit, thereby asserting that obfuscation is not used for the session.
-        /// > All subsequent packets MUST have the TAC_PLUS_UNENCRYPTED_FLAG bit set to 1
-        ///
-        /// For legacy deployments where TLS is not used, this flag should be cleared so the built in obfuscation method is used, as that is better than nothing.
-        /// 
-        /// RFC 8907 §4.1
-        /// > This option **MUST** NOT be used in production This flag **SHOULD** be clear in all deployments.
-        /// > Modern network traffic tools support encrypted traffic when configured with the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
-        ///
-        const UNENCRYPTED = 0x1;
-        /// This flag is used to allow a client and server to negotiate "Single Connection Mode"
-        const SINGLE_CONNECT = 0x4;
-    }
-}
-
 /// The Id for this TACACS+ session. This field does not change for
 /// the duration of the TACACS+ session. This number **MUST** be generated
 /// by a cryptographically strong random number generation method.
@@ -161,6 +133,34 @@ impl PacketHeader {
     }
 }
 
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, FromBytes, IntoBytes, Immutable, Unaligned)]
+/// Flags for the TACACS+ Header
+// All bits not defined (currently UNENCRYPTED and SINGLE_CONNECT) **MUST** be ignore when reading, and **SHOULD** be set to zero when writing
+pub struct Flags(pub u8);
+
+bitflags! {
+    impl Flags: u8 {
+        /// This flag indicates that the sender did not obfuscate the body of the packet. In modern deployments where TLS is used to secure the protocol,
+        /// the built in obfuscation is obsoleted
+        ///
+        /// RFC 9887 §4
+        /// > Peers MUST NOT use obfuscation with TLS. A TACACS+ client initiating a TACACS+ TLS connection MUST
+        /// > set the TAC_PLUS_UNENCRYPTED_FLAG bit, thereby asserting that obfuscation is not used for the session.
+        /// > All subsequent packets MUST have the TAC_PLUS_UNENCRYPTED_FLAG bit set to 1
+        ///
+        /// For legacy deployments where TLS is not used, this flag should be cleared so the built in obfuscation method is used, as that is better than nothing.
+        ///
+        /// RFC 8907 §4.1
+        /// > This option **MUST** NOT be used in production This flag **SHOULD** be clear in all deployments.
+        /// > Modern network traffic tools support encrypted traffic when configured with the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
+        ///
+        const UNENCRYPTED = 0x1;
+        /// This flag is used to allow a client and server to negotiate "Single Connection Mode"
+        const SINGLE_CONNECT = 0x4;
+    }
+}
+
 /// Indicates the authentication action: login, change password, or the insecure and deprecated "sendauth"
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
@@ -181,7 +181,7 @@ pub enum AuthenType {
     MSCHAP_V2 = 0x6,
 }
 
-/// Authen Privilege Level Packet Field
+/// Privilege Level Packet Field
 pub type PrivLevel = u8;
 
 /// Indicates the Service that authentication is being requested for.
@@ -284,9 +284,9 @@ impl AuthenStartPacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
@@ -338,6 +338,7 @@ impl AuthenStartPacket {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
+/// Status field for Authentication Reply Packets
 pub enum AuthenReplyStatus {
     PASS = 0x01,
     FAIL = 0x02,
@@ -347,19 +348,6 @@ pub enum AuthenReplyStatus {
     RESTART = 0x06,
     ERROR = 0x07,
     FOLLOW = 0x21,
-}
-
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromZeros, IntoBytes)]
-pub struct AuthenReplyFlags(pub u8);
-
-bitflags! {
-    impl AuthenReplyFlags: u8 {
-        /// If the information being requested by the server from the client is sensitive, then the server should set
-        /// the this flag. When the client queries the user for the information, the response MUST NOT be reflected in
-        /// the user interface as it is entered.
-        const REPLY_NOECHO = 1;
-    }
 }
 
 /**
@@ -420,9 +408,9 @@ impl AuthenReplyPacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `serv_msg` or `data`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
@@ -472,15 +460,16 @@ impl AuthenReplyPacket {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromZeros, IntoBytes)]
-pub struct AuthenContinueFlags(pub u8);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromBytes, IntoBytes)]
+/// Flags for the Authentication Reply packet
+pub struct AuthenReplyFlags(pub u8);
 
 bitflags! {
-    impl AuthenContinueFlags: u8 {
-        /// The client may prematurely terminate a session by setting the TAC_PLUS_CONTINUE_FLAG_ABORT flag in the CONTINUE message.
-        /// If this flag is set, the data portion of the message may contain a text explaining the reason for the abort. This text will
-        /// be handled by the server according to the requirements of the deployment.
-        const FLAG_ABORT = 1;
+    impl AuthenReplyFlags: u8 {
+        /// If the information being requested by the server from the client is sensitive, then the server should set
+        /// the this flag. When the client queries the user for the information, the response MUST NOT be reflected in
+        /// the user interface as it is entered.
+        const REPLY_NOECHO = 1;
     }
 }
 
@@ -545,9 +534,9 @@ impl AuthenContinuePacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user_msg` or `data`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
@@ -593,6 +582,20 @@ impl AuthenContinuePacket {
     pub unsafe fn new(flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, user_msg, data)
     }}
+}
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromBytes, IntoBytes)]
+/// Flags for the Authentication Continue Packet
+pub struct AuthenContinueFlags(pub u8);
+
+bitflags! {
+    impl AuthenContinueFlags: u8 {
+        /// The client may prematurely terminate a session by setting the TAC_PLUS_CONTINUE_FLAG_ABORT flag in the CONTINUE message.
+        /// If this flag is set, the data portion of the message may contain a text explaining the reason for the abort. This text will
+        /// be handled by the server according to the requirements of the deployment.
+        const FLAG_ABORT = 1;
+    }
 }
 
 
@@ -731,9 +734,9 @@ impl AuthorRequestPacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
@@ -881,9 +884,9 @@ impl AuthorReplyPacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
@@ -1030,9 +1033,9 @@ impl AcctRequestPacket {
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
@@ -1146,9 +1149,9 @@ impl AcctReplyPacket {
 #[cfg(feature = "dst-construct")]
 impl AcctReplyPacket {
     /// # Safety
-    /// 
+    ///
     /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `server_msg` or `data`
-    /// 
+    ///
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
     pub unsafe fn initialize(mem: (*mut u8, usize), status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
