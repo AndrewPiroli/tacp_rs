@@ -171,11 +171,11 @@ pub fn packet_data_overflow() -> bool { unsafe {
         AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, empty, empty, big8, empty).is_err(),
         AuthenStartPacket::new(AuthenStartAction::LOGIN, 15, AuthenType::ASCII, AuthenService::NONE, empty, empty, empty, big8).is_err(),
         // AuthenReply u16 serv_msg, data
-        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, 0, big16, empty).is_err(),
-        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, 0, empty, big16).is_err(),
+        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, AuthenReplyFlags(0), big16, empty).is_err(),
+        AuthenReplyPacket::new(AuthenReplyStatus::ERROR, AuthenReplyFlags(0), empty, big16).is_err(),
         // AuthenContinue u16 user_msg, data
-        AuthenContinuePacket::new(0, big16, empty).is_err(),
-        AuthenContinuePacket::new(0, empty, big16).is_err(),
+        AuthenContinuePacket::new(AuthenContinueFlags(0), big16, empty).is_err(),
+        AuthenContinuePacket::new(AuthenContinueFlags(0), empty, big16).is_err(),
         // Author Request u8 user, port, rem_addr, args
         AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, big8, empty, empty, &[empty]).is_err(),
         AuthorRequestPacket::new(AuthorMethod::ENABLE, 15, AuthenType::ASCII, AuthenService::ENABLE, empty, big8, empty, &[empty]).is_err(),

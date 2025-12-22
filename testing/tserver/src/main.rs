@@ -261,7 +261,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 terminate_session = true;
                 let mut pkt = unsafe { AuthenReplyPacket::boxed_to_bytes(AuthenReplyPacket::new(
                     AuthenReplyStatus::ERROR,
-                    0,
+                    AuthenReplyFlags(0),
                     &msg.unwrap_or("Unimplemented".into()),
                     &Vec::with_capacity(0)
                 ).unwrap())};
@@ -402,7 +402,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
         },
         AuthenState::ASCIIGETUSER => { // We've replied, so this is a AUTHEN CONTINUE packet
             let pkt = parse_authen_continue(packet.deref(), expected_length).unwrap();
-            if pkt.flags & 0x1 == 1 { //FIXME Abort flag
+            if pkt.flags.intersects(AuthenContinueFlags::FLAG_ABORT) {
                 let reason = String::from_utf8_lossy(pkt.get_data().unwrap_or_default());
                 info!(reason = ?reason, "Client Aborted Authentication Session");
                 return SrvPacket::AuthenClientAbort(reason.into());
@@ -413,14 +413,14 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
             }
             cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into());
             debug!(username = ?cstate.authen_info.username, "Client provides username");
-            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, 1<<REPLY_FLAG_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0)).unwrap() };
+            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, AuthenReplyFlags::REPLY_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0)).unwrap() };
             cstate.authen_state = AuthenState::ASCIIGETPASS;
             info!("requesting ascii password from client");
             return SrvPacket::AuthenReply(ret);
         },
         AuthenState::ASCIIGETPASS => {
             let pkt = parse_authen_continue(packet.deref(), expected_length).unwrap();
-            if pkt.flags & 0x1 == 1 { //FIXME Abort flag
+            if pkt.flags.intersects(AuthenContinueFlags::FLAG_ABORT) {
                 let reason = String::from_utf8_lossy(pkt.get_data().unwrap_or_default());
                 return SrvPacket::AuthenClientAbort(reason.into());
             }
@@ -435,7 +435,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                     testsupport::report(PacketType::AUTHEN, true, &cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::PASS,
-                        0,
+                        AuthenReplyFlags(0),
                         &Vec::from(b"Authentication Pass"),
                         &Vec::with_capacity(0),
                     ).unwrap()
@@ -444,7 +444,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                     testsupport::report(PacketType::AUTHEN, false, &cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::FAIL,
-                        0,
+                        AuthenReplyFlags(0),
                         &Vec::from(b"Authentication Fail"),
                         &Vec::with_capacity(0),
                     ).unwrap()
@@ -478,7 +478,7 @@ async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> Srv
     if pkt.get_user().is_none() {
         let ret = unsafe { AuthenReplyPacket::new(
             AuthenReplyStatus::GETUSER,
-            0,
+            AuthenReplyFlags(0),
             &Vec::from(b"Username required: "),
             &Vec::with_capacity(0),
         ).unwrap()};
@@ -489,7 +489,7 @@ async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> Srv
     if cstate.authen_info.pass.is_none() {
         let ret = unsafe { AuthenReplyPacket::new(
             AuthenReplyStatus::GETPASS,
-            1 << REPLY_FLAG_NOECHO,
+            AuthenReplyFlags::REPLY_NOECHO,
             &Vec::from(b"Enter pass"),
             &Vec::with_capacity(0),
         ).unwrap()};
@@ -503,7 +503,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
     if pkt.get_user().is_none() {
         let ret = unsafe { AuthenReplyPacket::new(
             AuthenReplyStatus::ERROR,
-            0,
+            AuthenReplyFlags(0),
             &Vec::from(b"Failed to supply username"),
             &Vec::with_capacity(0),
         ).unwrap()};
@@ -518,7 +518,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
             testsupport::report(PacketType::AUTHEN, true, info.username.as_ref().unwrap(), "").await;
             AuthenReplyPacket::new(
                 AuthenReplyStatus::PASS,
-                0,
+                AuthenReplyFlags(0),
                 &Vec::from(b"PAP Authentication PASS"),
                 &Vec::with_capacity(0),
             ).unwrap()
@@ -527,7 +527,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
             testsupport::report(PacketType::AUTHEN, false, info.username.as_ref().unwrap(), "").await;
             AuthenReplyPacket::new(
                 AuthenReplyStatus::FAIL,
-                0,
+                AuthenReplyFlags(0),
                 &Vec::from(b"PAP Authentication FAIL"),
                 &Vec::with_capacity(0),
             ).unwrap()

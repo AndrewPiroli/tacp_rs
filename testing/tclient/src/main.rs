@@ -309,10 +309,9 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
                 println!();
             }
             println!("Server requests \"data!\"");
-            use tacp::REPLY_FLAG_NOECHO;
-            let user_msg = util::prompt_user_input("Enter data for reply: ", packet.flags & 1 << REPLY_FLAG_NOECHO == 1);
+            let user_msg = util::prompt_user_input("Enter data for reply: ", packet.flags.intersects(AuthenReplyFlags::REPLY_NOECHO));
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, user_msg.as_bytes(), blank.as_bytes()).unwrap())
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), user_msg.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
@@ -337,7 +336,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             println!("Server requests username!");
             let username = util::prompt_user_input("Enter username: ", false);
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, username.as_bytes(), blank.as_bytes()).unwrap())
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), username.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
@@ -362,7 +361,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
             println!("Server requests password!");
             let pass = util::prompt_user_input("Enter password: ", true);
             let mut reply_body = unsafe {
-                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(0, pass.as_bytes(), blank.as_bytes()).unwrap())
+                AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), pass.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
             util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });

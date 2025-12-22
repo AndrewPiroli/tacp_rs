@@ -335,12 +335,18 @@ pub enum AuthenReplyStatus {
     FOLLOW = 0x21,
 }
 
-/// Authentication REPLY Flag TAC_PLUS_REPLY_FLAG_NOECHO
-///
-/// If the information being requested by the server from the client is sensitive, then the server should set
-/// the this flag. When the client queries the user for the information, the response MUST NOT be reflected in
-/// the user interface as it is entered.
-pub const REPLY_FLAG_NOECHO: u8 = 1;
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromZeros, IntoBytes)]
+pub struct AuthenReplyFlags(pub u8);
+
+bitflags! {
+    impl AuthenReplyFlags: u8 {
+        /// If the information being requested by the server from the client is sensitive, then the server should set
+        /// the this flag. When the client queries the user for the information, the response MUST NOT be reflected in
+        /// the user interface as it is entered.
+        const REPLY_NOECHO = 1;
+    }
+}
 
 /**
 The Authentication REPLY Packet Body
@@ -361,7 +367,7 @@ Encoding:
 #[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AuthenReplyPacket {
     pub status: AuthenReplyStatus,
-    pub flags: u8,
+    pub flags: AuthenReplyFlags,
     pub serv_msg_len: U16,
     pub data_len: U16,
     pub varidata: [u8],
@@ -405,7 +411,7 @@ impl AuthenReplyPacket {
     /// 
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
         use core::ptr::copy_nonoverlapping;
         max!(u16, serv_msg, data);
         let len = mem.1;
@@ -419,7 +425,7 @@ impl AuthenReplyPacket {
         let data_len = U16::new(data.len() as u16);
         let data_len_bytes = data_len.as_bytes();
         *mem.add(0) = status as u8;
-        *mem.add(1) = flags;
+        *mem.add(1) = flags.0;
         *mem.add(2) = serv_msg_bytes[0];
         *mem.add(3) = serv_msg_bytes[1];
         *mem.add(4) = data_len_bytes[0];
@@ -434,7 +440,7 @@ impl AuthenReplyPacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         let len = 6 + serv_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
@@ -446,9 +452,22 @@ impl AuthenReplyPacket {
         Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(status: AuthenReplyStatus, flags: u8, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
+    pub unsafe fn new(status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, flags, serv_msg, data)
     }}
+}
+
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, KnownLayout, Immutable, Unaligned, FromZeros, IntoBytes)]
+pub struct AuthenContinueFlags(pub u8);
+
+bitflags! {
+    impl AuthenContinueFlags: u8 {
+        /// The client may prematurely terminate a session by setting the TAC_PLUS_CONTINUE_FLAG_ABORT flag in the CONTINUE message.
+        /// If this flag is set, the data portion of the message may contain a text explaining the reason for the abort. This text will
+        /// be handled by the server according to the requirements of the deployment.
+        const FLAG_ABORT = 1;
+    }
 }
 
 /**
@@ -474,7 +493,7 @@ Encoding:
 pub struct AuthenContinuePacket {
     pub user_msg_len: U16,
     pub data_len: U16,
-    pub flags: u8,
+    pub flags: AuthenContinueFlags,
     pub varidata: [u8],
 }
 
@@ -517,7 +536,7 @@ impl AuthenContinuePacket {
     /// 
     /// Note that mem.0 is a **thin** pointer.
     /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), flags: u8, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+    pub unsafe fn initialize(mem: (*mut u8, usize), flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
         use core::ptr::copy_nonoverlapping;
         max!(u16, user_msg, data);
         let len = mem.1;
@@ -534,7 +553,7 @@ impl AuthenContinuePacket {
         *mem.add(1) = user_msg_len_bytes[1];
         *mem.add(2) = data_len_bytes[0];
         *mem.add(3) = data_len_bytes[1];
-        *mem.add(4) = flags;
+        *mem.add(4) = flags.0;
         let start = 5;
         let end = 5+user_msg.len();
         copy_nonoverlapping(user_msg.as_ptr(), mem.add(start), end-start);
@@ -545,7 +564,7 @@ impl AuthenContinuePacket {
         Ok(())
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: u8, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
+    pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         let len = 5 + user_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
@@ -557,7 +576,7 @@ impl AuthenContinuePacket {
         Ok(ret)
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
-    pub unsafe fn new(flags: u8, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
+    pub unsafe fn new(flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, user_msg, data)
     }}
 }
