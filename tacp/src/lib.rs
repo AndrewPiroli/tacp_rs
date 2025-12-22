@@ -281,52 +281,49 @@ impl AuthenStartPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u8, user, port, rem_addr, data);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + data.len();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
-        *mem.add(0) = action as u8;
-        *mem.add(1) = priv_level;
-        *mem.add(2) = authen_type as u8;
-        *mem.add(3) = authen_service as u8;
-        *mem.add(4) = user.len() as u8;
-        *mem.add(5) = port.len() as u8;
-        *mem.add(6) = rem_addr.len() as u8;
-        *mem.add(7) = data.len() as u8;
+        mem[0] = action as u8;
+        mem[1] = priv_level;
+        mem[2] = authen_type as u8;
+        mem[3] = authen_service as u8;
+        mem[4] = user.len() as u8;
+        mem[5] = port.len() as u8;
+        mem[6] = rem_addr.len() as u8;
+        mem[7] = data.len() as u8;
         let mut varidata_ptr = 8_usize;
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len());
-        varidata_ptr += user.len();
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len());
-        varidata_ptr += port.len();
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len());
-        varidata_ptr += rem_addr.len();
-        copy_nonoverlapping(data.as_ptr(), mem.add(varidata_ptr), data.len());
-        varidata_ptr += data.len();
+        unsafe {
+            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
+            varidata_ptr += user.len();
+            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
+            varidata_ptr += port.len();
+            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
+            varidata_ptr += rem_addr.len();
+            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), data.len());
+            varidata_ptr += data.len();
+        }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -406,17 +403,11 @@ impl AuthenReplyPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `serv_msg` or `data`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u16, serv_msg, data);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 6+serv_msg.len()+data.len();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
@@ -425,32 +416,35 @@ impl AuthenReplyPacket {
         let serv_msg_bytes = serv_msg_len.as_bytes();
         let data_len = U16::new(data.len() as u16);
         let data_len_bytes = data_len.as_bytes();
-        *mem.add(0) = status as u8;
-        *mem.add(1) = flags.0;
-        *mem.add(2) = serv_msg_bytes[0];
-        *mem.add(3) = serv_msg_bytes[1];
-        *mem.add(4) = data_len_bytes[0];
-        *mem.add(5) = data_len_bytes[1];
-        let start = 6;
-        let end = start + serv_msg.len();
-        copy_nonoverlapping(serv_msg.as_ptr(), mem.add(start), end-start);
-        let start = end;
-        let end = start + data.len();
-        copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
-        debug_assert!(end == len);
+        mem[0] = status as u8;
+        mem[1] = flags.0;
+        mem[2] = serv_msg_bytes[0];
+        mem[3] = serv_msg_bytes[1];
+        mem[4] = data_len_bytes[0];
+        mem[5] = data_len_bytes[1];
+        unsafe {
+            let start = 6;
+            let end = start + serv_msg.len();
+            copy_nonoverlapping(serv_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
+            let start = end;
+            let end = start + data.len();
+            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), end-start);
+            debug_assert!(end == len);
+        }
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 6 + serv_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), status, flags, serv_msg, data) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), status, flags, serv_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -533,17 +527,11 @@ impl AuthenContinuePacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user_msg` or `data`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u16, user_msg, data);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 5 + user_msg.len() + data.len();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
@@ -552,31 +540,34 @@ impl AuthenContinuePacket {
         let data_len_be = U16::new(data.len() as u16);
         let user_msg_len_bytes = user_msg_len_be.as_bytes();
         let data_len_bytes = data_len_be.as_bytes();
-        *mem.add(0) = user_msg_len_bytes[0];
-        *mem.add(1) = user_msg_len_bytes[1];
-        *mem.add(2) = data_len_bytes[0];
-        *mem.add(3) = data_len_bytes[1];
-        *mem.add(4) = flags.0;
-        let start = 5;
-        let end = 5+user_msg.len();
-        copy_nonoverlapping(user_msg.as_ptr(), mem.add(start), end-start);
-        let start = end;
-        let end = start + data.len();
-        copy_nonoverlapping(data.as_ptr(), mem.add(start), end-start);
-        debug_assert!(end == len);
+        mem[0] = user_msg_len_bytes[0];
+        mem[1] = user_msg_len_bytes[1];
+        mem[2] = data_len_bytes[0];
+        mem[3] = data_len_bytes[1];
+        mem[4] = flags.0;
+        unsafe {
+            let start = 5;
+            let end = 5+user_msg.len();
+            copy_nonoverlapping(user_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
+            let start = end;
+            let end = start + data.len();
+            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), end-start);
+            debug_assert!(end == len);
+        }
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 5 + user_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), flags, user_msg, data) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, user_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -734,61 +725,58 @@ impl AuthorRequestPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u8, user,  port, rem_addr, args);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
-        *mem.add(0) = method as u8;
-        *mem.add(1) = priv_level;
-        *mem.add(2) = authen_type as u8;
-        *mem.add(3) = authen_svc as u8;
-        *mem.add(4) = user.len() as u8;
-        *mem.add(5) = port.len() as u8;
-        *mem.add(6) = rem_addr.len() as u8;
-        *mem.add(7) = args.len() as u8;
+        mem[0] = method as u8;
+        mem[1] = priv_level;
+        mem[2] = authen_type as u8;
+        mem[3] = authen_svc as u8;
+        mem[4] = user.len() as u8;
+        mem[5] = port.len() as u8;
+        mem[6] = rem_addr.len() as u8;
+        mem[7] = args.len() as u8;
         let mut varidata_ptr = 8usize;
         // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
         for arg in args.iter() {
             max!(u8, arg);
-            *mem.add(varidata_ptr) = arg.len() as u8;
+            mem[varidata_ptr] = arg.len() as u8;
             varidata_ptr += 1;
         }
-        copy_nonoverlapping(user.as_ptr(), mem.add(varidata_ptr), user.len());
-        varidata_ptr += user.len();
-        copy_nonoverlapping(port.as_ptr(), mem.add(varidata_ptr), port.len());
-        varidata_ptr += port.len();
-        copy_nonoverlapping(rem_addr.as_ptr(), mem.add(varidata_ptr), rem_addr.len());
-        varidata_ptr += rem_addr.len();
-        for arg in args.iter() {
-            let arg_len = arg.len();
-            copy_nonoverlapping(arg.as_ptr(), mem.add(varidata_ptr), arg_len);
-            varidata_ptr += arg_len;
+        unsafe {
+            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
+            varidata_ptr += user.len();
+            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
+            varidata_ptr += port.len();
+            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
+            varidata_ptr += rem_addr.len();
+            for arg in args.iter() {
+                let arg_len = arg.len();
+                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
+                varidata_ptr += arg_len;
+            }
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -885,61 +873,58 @@ impl AuthorReplyPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to be `args`, `server_msg` or `data`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u8, args);
         max!(u16, server_msg, data);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
-        *mem.add(0) = status as u8;
-        *mem.add(1) = args.len() as u8;
+        mem[0] = status as u8;
+        mem[1] = args.len() as u8;
         let server_msg_len_be = U16::new(server_msg.len() as u16);
         let data_len_be = U16::new(data.len() as u16);
         let server_msg_len_bytes = server_msg_len_be.as_bytes();
         let data_len_bytes = data_len_be.as_bytes();
-        *mem.add(2) = server_msg_len_bytes[0];
-        *mem.add(3) = server_msg_len_bytes[1];
-        *mem.add(4) = data_len_bytes[0];
-        *mem.add(5) = data_len_bytes[1];
-        let server_msg_start = 6 + args.len();
-        let server_msg_end = server_msg_start + server_msg.len();
-        copy_nonoverlapping(server_msg.as_ptr(), mem.add(server_msg_start), server_msg_end-server_msg_start);
-        let data_msg_start = server_msg_end;
-        let data_msg_end = data_msg_start + data.len();
-        copy_nonoverlapping(data.as_ptr(), mem.add(data_msg_start), data_msg_end-data_msg_start);
-        let mut endptr = data_msg_end;
-        for (idx, arg) in args.iter().enumerate() {
-            let arg = *arg;
-            max!(u8, arg);
-            let len = arg.len();
-            *mem.add(6 + idx) = len as u8;
-            copy_nonoverlapping(arg.as_ptr(), mem.add(endptr), len);
-            endptr += len
+        mem[2] = server_msg_len_bytes[0];
+        mem[3] = server_msg_len_bytes[1];
+        mem[4] = data_len_bytes[0];
+        mem[5] = data_len_bytes[1];
+        unsafe {
+            let server_msg_start = 6 + args.len();
+            let server_msg_end = server_msg_start + server_msg.len();
+            copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(server_msg_start), server_msg_end-server_msg_start);
+            let data_msg_start = server_msg_end;
+            let data_msg_end = data_msg_start + data.len();
+            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(data_msg_start), data_msg_end-data_msg_start);
+            let mut endptr = data_msg_end;
+            for (idx, arg) in args.iter().enumerate() {
+                let arg = *arg;
+                max!(u8, arg);
+                let len = arg.len();
+                mem[6 + idx] = len as u8;
+                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(endptr), len);
+                endptr += len
+            }
+            debug_assert!(endptr == required_mem);
         }
-        debug_assert!(endptr == required_mem);
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), status, args, server_msg, data) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), status, args, server_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1035,33 +1020,28 @@ impl AcctRequestPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
     }
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `user`, `port`, `rem_addr` or `args`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> { unsafe {
-        let len = mem.1;
-        let mem = mem.0;
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
+        let len = mem.len();
         let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
-        *mem = flags as u8;
-        AuthorRequestPacket::initialize((mem.add(1), len-1), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
-    }}
+        mem[0] = flags as u8;
+        AuthorRequestPacket::initialize(&mut mem[1..], method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
@@ -1154,17 +1134,11 @@ impl AcctReplyPacket {
 }
 #[cfg(feature = "dst-construct")]
 impl AcctReplyPacket {
-    /// # Safety
-    ///
-    /// The memory at (mem.0)..(mem.0 + mem.1) must be valid for writing and must not overlap with the memory pointed to by `server_msg` or `data`
-    ///
-    /// Note that mem.0 is a **thin** pointer.
-    /// If this functions returns Ok, mem.0 may be combined with the correct metadata to create a slice for ease of use.
-    pub unsafe fn initialize(mem: (*mut u8, usize), status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> { unsafe {
+    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    pub fn initialize(mem: &mut [u8], status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         use core::ptr::copy_nonoverlapping;
         max!(u16,  server_msg, data);
-        let len = mem.1;
-        let mem = mem.0;
+        let len = mem.len();
         let required_mem = 5 + server_msg.len() + data.len();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
@@ -1173,31 +1147,34 @@ impl AcctReplyPacket {
         let server_msg_len_bytes = server_msg_len_be.as_bytes();
         let data_len_be = U16::new(data.len() as u16);
         let data_len_bytes = data_len_be.as_bytes();
-        *mem.add(0) = server_msg_len_bytes[0];
-        *mem.add(1) = server_msg_len_bytes[1];
-        *mem.add(2) = data_len_bytes[0];
-        *mem.add(3) = data_len_bytes[1];
-        *mem.add(4) = status as u8;
-        let mut start = 5usize;
-        let mut end = start+server_msg.len();
-        copy_nonoverlapping(server_msg.as_ptr(), mem.add(start), server_msg.len());
-        start = end;
-        end = start + data.len();
-        copy_nonoverlapping(data.as_ptr(), mem.add(start), data.len());
-        debug_assert!(end == required_mem);
+        mem[0] = server_msg_len_bytes[0];
+        mem[1] = server_msg_len_bytes[1];
+        mem[2] = data_len_bytes[0];
+        mem[3] = data_len_bytes[1];
+        mem[4] = status as u8;
+        unsafe {
+            let mut start = 5usize;
+            let mut end = start+server_msg.len();
+            copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(start), server_msg.len());
+            start = end;
+            end = start + data.len();
+            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), data.len());
+            debug_assert!(end == required_mem);
+        }
         Ok(())
-    }}
+    }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
+        use core::slice::from_raw_parts_mut as mk_slice;
         let len = 5 + server_msg.len() + data.len();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
-        if let Err(e) = Self::initialize((ptr, len), status, server_msg, data) {
+        if let Err(e) = Self::initialize(mk_slice(ptr, len), status, server_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = core::slice::from_raw_parts_mut(ptr, len);
+        let fatref = mk_slice(ptr, len);
         let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
         let ret = Box::from_raw_in(fatptr, the_alloc);
         Ok(ret)
