@@ -136,7 +136,7 @@ impl PacketHeader {
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, KnownLayout, FromBytes, IntoBytes, Immutable, Unaligned)]
 /// Flags for the TACACS+ Header
-// All bits not defined (currently UNENCRYPTED and SINGLE_CONNECT) **MUST** be ignore when reading, and **SHOULD** be set to zero when writing
+// All bits not defined (currently UNENCRYPTED and SINGLE_CONNECT) **MUST** be ignored when reading, and **SHOULD** be set to zero when writing
 pub struct Flags(pub u8);
 
 bitflags! {
@@ -156,7 +156,7 @@ bitflags! {
         /// > Modern network traffic tools support encrypted traffic when configured with the shared secret, so obfuscated mode can and **SHOULD** be used even during test.
         ///
         const UNENCRYPTED = 0x1;
-        /// This flag is used to allow a client and server to negotiate "Single Connection Mode"
+        /// This flag is used to allow a client and server to negotiate "Single Connection Mode" as defined in RFC 8907 §4.3
         const SINGLE_CONNECT = 0x4;
     }
 }
@@ -267,8 +267,7 @@ impl AuthenStartPacket {
         Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        8 // Fixed portion of packet
-        + self.varidata.len()
+        Self::size_for_metadata(self.varidata.len()).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -286,7 +285,7 @@ impl AuthenStartPacket {
         use core::ptr::copy_nonoverlapping;
         max!(u8, user, port, rem_addr, data);
         let len = mem.len();
-        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + data.len();
+        let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -298,7 +297,7 @@ impl AuthenStartPacket {
         mem[5] = port.len() as u8;
         mem[6] = rem_addr.len() as u8;
         mem[7] = data.len() as u8;
-        let mut varidata_ptr = 8_usize;
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
         unsafe {
             copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
             varidata_ptr += user.len();
@@ -390,7 +389,7 @@ impl AuthenReplyPacket {
         Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        6 + self.data_len.get() as usize + self.serv_msg_len.get() as usize
+        Self::size_for_metadata(self.data_len.get() as usize + self.serv_msg_len.get() as usize).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -408,7 +407,7 @@ impl AuthenReplyPacket {
         use core::ptr::copy_nonoverlapping;
         max!(u16, serv_msg, data);
         let len = mem.len();
-        let required_mem = 6+serv_msg.len()+data.len();
+        let required_mem = Self::size_for_metadata(serv_msg.len()+data.len()).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -423,7 +422,7 @@ impl AuthenReplyPacket {
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
         unsafe {
-            let start = 6;
+            let start = Self::size_for_metadata(0usize).unwrap();
             let end = start + serv_msg.len();
             copy_nonoverlapping(serv_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
             let start = end;
@@ -437,7 +436,7 @@ impl AuthenReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 6 + serv_msg.len() + data.len();
+        let len = Self::size_for_metadata(serv_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, flags, serv_msg, data) {
@@ -514,7 +513,7 @@ impl AuthenContinuePacket {
         Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        5 + self.user_msg_len.get() as usize + self.data_len.get() as usize
+        Self::size_for_metadata(self.user_msg_len.get() as usize + self.data_len.get() as usize).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -532,7 +531,7 @@ impl AuthenContinuePacket {
         use core::ptr::copy_nonoverlapping;
         max!(u16, user_msg, data);
         let len = mem.len();
-        let required_mem = 5 + user_msg.len() + data.len();
+        let required_mem = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -546,8 +545,8 @@ impl AuthenContinuePacket {
         mem[3] = data_len_bytes[1];
         mem[4] = flags.0;
         unsafe {
-            let start = 5;
-            let end = 5+user_msg.len();
+            let start = Self::size_for_metadata(0usize).unwrap();
+            let end = start+user_msg.len();
             copy_nonoverlapping(user_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
             let start = end;
             let end = start + data.len();
@@ -560,7 +559,7 @@ impl AuthenContinuePacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 5 + user_msg.len() + data.len();
+        let len = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, user_msg, data) {
@@ -712,7 +711,7 @@ impl AuthorRequestPacket {
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
-        8 + self.varidata.len()
+        Self::size_for_metadata(self.varidata.len()).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -730,7 +729,7 @@ impl AuthorRequestPacket {
         use core::ptr::copy_nonoverlapping;
         max!(u8, user,  port, rem_addr, args);
         let len = mem.len();
-        let required_mem = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -742,7 +741,7 @@ impl AuthorRequestPacket {
         mem[5] = port.len() as u8;
         mem[6] = rem_addr.len() as u8;
         mem[7] = args.len() as u8;
-        let mut varidata_ptr = 8usize;
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
         // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
         for arg in args.iter() {
             max!(u8, arg);
@@ -769,7 +768,7 @@ impl AuthorRequestPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 8 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
@@ -860,7 +859,7 @@ impl AuthorReplyPacket {
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
-        6 + self.varidata.len()
+        Self::size_for_metadata(self.varidata.len()).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -879,7 +878,7 @@ impl AuthorReplyPacket {
         max!(u8, args);
         max!(u16, server_msg, data);
         let len = mem.len();
-        let required_mem = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -894,7 +893,7 @@ impl AuthorReplyPacket {
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
         unsafe {
-            let server_msg_start = 6 + args.len();
+            let server_msg_start = Self::size_for_metadata(0usize).unwrap() + args.len();
             let server_msg_end = server_msg_start + server_msg.len();
             copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(server_msg_start), server_msg_end-server_msg_start);
             let data_msg_start = server_msg_end;
@@ -905,7 +904,7 @@ impl AuthorReplyPacket {
                 let arg = *arg;
                 max!(u8, arg);
                 let len = arg.len();
-                mem[6 + idx] = len as u8;
+                mem[Self::size_for_metadata(0usize).unwrap() + idx] = len as u8;
                 copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(endptr), len);
                 endptr += len
             }
@@ -917,7 +916,7 @@ impl AuthorReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 6 + server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, args, server_msg, data) {
@@ -980,34 +979,69 @@ Encoding:
 |   arg_N ...
 +----------------+----------------+----------------+----------------+
 ```
- 
-NOTE: This is basically the same as the Authorization Request Packet body,
-    We take advantage of this by parsing it as such, then adding the flags
 */
 #[repr(C, packed)]
 #[derive(KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
 pub struct AcctRequestPacket {
     pub flags: AcctFlags,
-    pub inner: AuthorRequestPacket,
+    pub method: AuthorMethod,
+    pub priv_level: PrivLevel,
+    pub authen_type: AuthenType,
+    pub authen_svc: AuthenService,
+    pub user_len: u8,
+    pub port_len: u8,
+    pub rem_addr_len: u8,
+    pub arg_cnt: u8,
+    pub varidata: [u8]
 }
 impl AcctRequestPacket {
     pub fn get_user(&self) -> Option<&[u8]> {
-        self.inner.get_user()
+        let start = self.arg_cnt as usize;
+        let end = start + self.user_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
     pub fn get_port(&self) -> Option<&[u8]> {
-        self.inner.get_port()
+        let start = self.arg_cnt as usize + self.user_len as usize;
+        let end = start + self.port_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
     pub fn get_rem_addr(&self) -> Option<&[u8]> {
-        self.inner.get_rem_addr()
+        let start = self.arg_cnt as usize + self.user_len as usize + self.port_len as usize;
+        let end = start + self.rem_addr_len as usize;
+        if end-start == 0 {
+            return None;
+        }
+        Some(&self.varidata[start..end])
     }
     pub fn get_raw_argvalpair(&self, idx: u8) -> Option<&[u8]> {
-        self.inner.get_raw_argvalpair(idx)
+        if idx > self.arg_cnt {
+            return None;
+        }
+        let arg_len = self.varidata[idx as usize] as usize;
+        let mut skip = 
+            self.arg_cnt as usize
+            + self.user_len as usize
+            + self.port_len as usize
+            + self.rem_addr_len as usize;
+        for n in 0..idx {
+            skip += self.varidata[n as usize] as usize;
+        }
+        Some(&self.varidata[skip..(skip+arg_len)])
     }
     pub fn iter_args(&self) -> ArgValPairIter<'_> {
-        self.inner.iter_args()
+        let lengths_range = 0..(self.arg_cnt as usize);
+        let data_range_base = 
+            self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
+        ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
     pub fn len(&self) -> usize {
-        1 + self.inner.len()
+        Self::size_for_metadata(self.varidata.len()).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -1022,19 +1056,50 @@ impl AcctRequestPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
+        use core::ptr::copy_nonoverlapping;
+        max!(u8, user,  port, rem_addr, args);
         let len = mem.len();
-        let required_mem = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
         mem[0] = flags as u8;
-        AuthorRequestPacket::initialize(&mut mem[1..], method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
+        mem[1] = method as u8;
+        mem[2] = priv_level;
+        mem[3] = authen_type as u8;
+        mem[4] = authen_svc as u8;
+        mem[5] = user.len() as u8;
+        mem[6] = port.len() as u8;
+        mem[7] = rem_addr.len() as u8;
+        mem[9] = args.len() as u8;
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
+        for arg in args.iter() {
+            max!(u8, arg);
+            mem[varidata_ptr] = arg.len() as u8;
+            varidata_ptr += 1;
+        }
+        unsafe {
+            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
+            varidata_ptr += user.len();
+            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
+            varidata_ptr += port.len();
+            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
+            varidata_ptr += rem_addr.len();
+            for arg in args.iter() {
+                let arg_len = arg.len();
+                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
+                varidata_ptr += arg_len;
+            }
+        }
+        debug_assert!(varidata_ptr == required_mem);
+        Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 9 + user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len());
+        let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
@@ -1129,7 +1194,7 @@ impl AcctReplyPacket {
         Some(&self.varidata[start..end])
     }
     pub fn len(&self) -> usize {
-        5 + self.varidata.len()
+        Self::size_for_metadata(self.varidata.len()).unwrap()
     }
 }
 #[cfg(feature = "dst-construct")]
@@ -1139,7 +1204,7 @@ impl AcctReplyPacket {
         use core::ptr::copy_nonoverlapping;
         max!(u16,  server_msg, data);
         let len = mem.len();
-        let required_mem = 5 + server_msg.len() + data.len();
+        let required_mem = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         if len < required_mem {
             return Err(TacpErr::BufferSize((required_mem, len)));
         }
@@ -1153,7 +1218,7 @@ impl AcctReplyPacket {
         mem[3] = data_len_bytes[1];
         mem[4] = status as u8;
         unsafe {
-            let mut start = 5usize;
+            let mut start = Self::size_for_metadata(0usize).unwrap();
             let mut end = start+server_msg.len();
             copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(start), server_msg.len());
             start = end;
@@ -1167,7 +1232,7 @@ impl AcctReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 5 + server_msg.len() + data.len();
+        let len = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, server_msg, data) {
