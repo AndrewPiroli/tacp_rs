@@ -316,15 +316,23 @@ impl AuthenStartPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -437,15 +445,23 @@ impl AuthenReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(serv_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, flags, serv_msg, data) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -560,15 +576,23 @@ impl AuthenContinuePacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, user_msg, data) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -769,15 +793,23 @@ impl AuthorRequestPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -917,15 +949,23 @@ impl AuthorReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, args, server_msg, data) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -1100,15 +1140,23 @@ impl AcctRequestPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -1233,15 +1281,23 @@ impl AcctReplyPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
+        use core::ptr::NonNull;
         let len = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, server_msg, data) {
-            the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
+            the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
         let sliced = mk_slice(ptr, len);
-        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        let typed_ptr = match Self::try_mut_from_bytes(sliced) {
+            Ok(typed_ref) => core::ptr::from_mut(typed_ref),
+            Err(e) => {
+                let e: TacpErr = e.into();
+                the_alloc.deallocate(NonNull::new_unchecked(ptr), layout);
+                return Err(e);
+            },
+        };
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
