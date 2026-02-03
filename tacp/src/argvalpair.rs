@@ -31,7 +31,7 @@ impl<'a> From<&'a str> for Value<'a> {
     }
 }
 
-impl<'a> Value<'a> {
+impl Value<'_> {
     pub fn as_str(&self) -> Option<&str> {
         if let Self::Str(s) = self {
             Some(s)
@@ -61,14 +61,14 @@ impl<'a> Value<'a> {
     }
 }
 
-impl<'a> core::fmt::Display for Value<'a> {
+impl core::fmt::Display for Value<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Value::Numeric(num) => {
-                write!(f, "{}", num)
+                write!(f, "{num}")
             },
             Value::IPAddr(ip) => {
-                write!(f, "{}", ip)
+                write!(f, "{ip}")
             },
             Value::Boolean(tf) => {
                 match tf {
@@ -140,7 +140,7 @@ impl<'a> TryFrom<&'a String> for ArgValPair<'a, 'a> {
     }
 }
 
-impl<'a, 'b> core::fmt::Display for ArgValPair<'a, 'b> {
+impl core::fmt::Display for ArgValPair<'_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.argument)?;
         if self.optional {
@@ -175,7 +175,7 @@ impl<'a> ArgValPairIter<'a> {
 impl<'a> Iterator for ArgValPairIter<'a> {
     type Item = Result<ArgValPair<'a, 'a>, TacpErr>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current < self.limit as u16 {
+        if self.current < u16::from(self.limit) {
             let len = self.lengths[self.current as usize] as usize;
             let new_idx = self.data_idx + len;
             let ret =  match str::from_utf8(&self.data[self.data_idx..new_idx]) {

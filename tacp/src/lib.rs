@@ -1,4 +1,4 @@
-#![allow(stable_features, non_camel_case_types, clippy::len_without_is_empty, clippy::too_many_arguments)]
+#![allow(stable_features, non_camel_case_types)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![feature(allocator_api, layout_for_ptr)]
 #![no_std]
@@ -12,8 +12,8 @@ use alloc::alloc::Allocator;
 use argvalpair::ArgValPairIter;
 
 use bitflags::bitflags;
-use zerocopy::*;
-use zerocopy_derive::*;
+use zerocopy::{KnownLayout, TryCastError, ConvertError};
+use zerocopy_derive::{TryFromBytes, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned};
 pub use zerocopy::byteorder::network_endian::{U32, U16};
 pub use zerocopy::{IntoBytes, TryFromBytes, FromBytes};
 
@@ -53,10 +53,10 @@ macro_rules! max {
 /// TACACS+ Header Version Field
 ///
 /// The TACACS+ protocol is versioned to allow revisions while maintaining backwards compatibility. The version number is in every packet header.
-/// The changes between minor_version 0 and 1 apply only to the authentication process, and all deal with the way that Challenge Handshake Authentication Protocol (CHAP)
+/// The changes between minor version 0 and 1 apply only to the authentication process, and all deal with the way that Challenge Handshake Authentication Protocol (CHAP)
 /// and Password Authentication Protocol (PAP) authentications are handled.
-/// PAP, CHAP, and MS-CHAP login use minor_version 1. The normal exchange is a single START packet from the client and a single REPLY from the server.
-/// All authorization and accounting and ASCII authentication use minor_version 0.
+/// PAP, CHAP, and MS-CHAP login use minor version 1. The normal exchange is a single START packet from the client and a single REPLY from the server.
+/// All authorization and accounting and ASCII authentication use minor version 0.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, TryFromBytes, IntoBytes, KnownLayout, Immutable, PartialEq, Eq, Unaligned)]
 pub enum Version {
@@ -266,6 +266,7 @@ impl AuthenStartPacket {
         }
         Some(&self.varidata[start..end])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -278,7 +279,7 @@ impl AuthenStartPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {
@@ -313,19 +314,18 @@ impl AuthenStartPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
@@ -388,6 +388,7 @@ impl AuthenReplyPacket {
         }
         Some(&self.varidata[start..end])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.data_len.get() as usize + self.serv_msg_len.get() as usize).unwrap()
     }
@@ -400,7 +401,7 @@ impl AuthenReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
@@ -434,19 +435,18 @@ impl AuthenReplyPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(serv_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, flags, serv_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
@@ -512,6 +512,7 @@ impl AuthenContinuePacket {
         }
         Some(&self.varidata[start..end])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.user_msg_len.get() as usize + self.data_len.get() as usize).unwrap()
     }
@@ -524,7 +525,7 @@ impl AuthenContinuePacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
@@ -557,19 +558,18 @@ impl AuthenContinuePacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, user_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
@@ -601,7 +601,7 @@ bitflags! {
 /// RADIUS is the RADIUS authentication protocol. RCMD refers to authentication provided via the R-command protocols from Berkeley Unix.
 /// KRB5 \[RFC4120\] and KRB4 \[KRB4\] are Kerberos versions 5 and 4.
 /// As mentioned above, this field is used by the client to indicate how it performed the authentication.
-/// One of the options (TAC_PLUS_AUTHEN_METH_TACACSPLUS := 0x06) is TACACS+ itself, and so the detail of how the client performed this option is given in "Authentication" (Section 5).
+/// One of the options (`TAC_PLUS_AUTHEN_METH_TACACSPLUS` := 0x06) is TACACS+ itself, and so the detail of how the client performed this option is given in "Authentication" (Section 5).
 /// For all other options, such as KRB and RADIUS, the TACACS+ protocol did not play any part in the authentication phase;
 /// as those interactions were not conducted using the TACACS+ protocol, they will not be documented here.
 /// For implementers of clients who need details of the other protocols, please refer to the respective Kerberos \[RFC4120\] and RADIUS \[RFC3579\] RFCs.
@@ -710,6 +710,7 @@ impl AuthorRequestPacket {
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -722,7 +723,7 @@ impl AuthorRequestPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
@@ -743,7 +744,7 @@ impl AuthorRequestPacket {
         mem[7] = args.len() as u8;
         let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
         // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
-        for arg in args.iter() {
+        for arg in args {
             max!(u8, arg);
             mem[varidata_ptr] = arg.len() as u8;
             varidata_ptr += 1;
@@ -755,7 +756,7 @@ impl AuthorRequestPacket {
             varidata_ptr += port.len();
             copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
             varidata_ptr += rem_addr.len();
-            for arg in args.iter() {
+            for arg in args {
                 let arg_len = arg.len();
                 copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
                 varidata_ptr += arg_len;
@@ -766,19 +767,18 @@ impl AuthorRequestPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
@@ -858,6 +858,7 @@ impl AuthorReplyPacket {
             self.arg_cnt as usize + self.server_msg_len.get() as usize + self.data_len.get() as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -870,7 +871,7 @@ impl AuthorReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
@@ -906,7 +907,7 @@ impl AuthorReplyPacket {
                 let len = arg.len();
                 mem[Self::size_for_metadata(0usize).unwrap() + idx] = len as u8;
                 copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(endptr), len);
-                endptr += len
+                endptr += len;
             }
             debug_assert!(endptr == required_mem);
         }
@@ -914,19 +915,18 @@ impl AuthorReplyPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, args, server_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
@@ -1040,6 +1040,7 @@ impl AcctRequestPacket {
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -1052,7 +1053,7 @@ impl AcctRequestPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
@@ -1074,7 +1075,7 @@ impl AcctRequestPacket {
         mem[9] = args.len() as u8;
         let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
         // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
-        for arg in args.iter() {
+        for arg in args {
             max!(u8, arg);
             mem[varidata_ptr] = arg.len() as u8;
             varidata_ptr += 1;
@@ -1086,7 +1087,7 @@ impl AcctRequestPacket {
             varidata_ptr += port.len();
             copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
             varidata_ptr += rem_addr.len();
-            for arg in args.iter() {
+            for arg in args {
                 let arg_len = arg.len();
                 copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
                 varidata_ptr += arg_len;
@@ -1097,19 +1098,18 @@ impl AcctRequestPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
@@ -1137,11 +1137,11 @@ Parsed from the first byte of the Accounting REQUEST packet according to the fol
 
 where:
 
-FLAG_START = 0x2
+`FLAG_START` = 0x2
 
-FLAG_STOP = 0x4
+`FLAG_STOP` = 0x4
 
-FLAG_WATCHDOG = 0x8
+`FLAG_WATCHDOG` = 0x8
 */
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, KnownLayout, Unaligned, TryFromBytes, IntoBytes, Immutable)]
@@ -1193,6 +1193,7 @@ impl AcctReplyPacket {
         }
         Some(&self.varidata[start..end])
     }
+    #[allow(clippy::missing_panics_doc, reason = "infallible")]
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -1230,19 +1231,18 @@ impl AcctReplyPacket {
     }
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
-        use core::alloc::*;
+        use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         let len = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
-        let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
+        let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
         if let Err(e) = Self::initialize(mk_slice(ptr, len), status, server_msg, data) {
             the_alloc.deallocate(core::ptr::NonNull::new_unchecked(ptr), layout);
             return Err(e);
         }
-        let fatref = mk_slice(ptr, len);
-        let fatptr: *mut Self = Self::try_mut_from_bytes(fatref)? as *mut Self;
-        let ret = Box::from_raw_in(fatptr, the_alloc);
-        Ok(ret)
+        let sliced = mk_slice(ptr, len);
+        let typed_ptr = core::ptr::from_mut(Self::try_mut_from_bytes(sliced)?);
+        Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
     pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
@@ -1255,7 +1255,7 @@ impl AcctReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
-        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr as *mut () as *mut u8, real_len), allocator) }
+        unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
 }
 
@@ -1302,8 +1302,8 @@ impl core::fmt::Display for TacpErr {
         }
     }
 }
-impl core::error::Error for TacpErr {}
 
+impl core::error::Error for TacpErr {}
 
 impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
     fn from(_: zerocopy::error::AlignmentError<S, D>) -> Self {
@@ -1317,7 +1317,6 @@ impl<S, D> From<zerocopy::error::SizeError<S,D>> for TacpErr {
         Self::ParseError("ZC size error")
     }
 }
-
 
 impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpErr {
     fn from(value: TryCastError<S, D>) -> Self {

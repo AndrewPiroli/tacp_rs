@@ -18,7 +18,7 @@
 //! Server implementations **MUST** allow a unique secret key to be associated with each client. It
 //! is a site-dependent decision as to whether or not the use of separate keys is appropriate.
 //!
-//! The flag field **MUST** be configured with TAC_PLUS_UNENCRYPTED_FLAG
+//! The flag field **MUST** be configured with `TAC_PLUS_UNENCRYPTED_FLAG``
 //! set to - so that the packet body is obfuscated by XORing it bytewise with a pseudo-random pad:
 //!
 //! ENCRYPTED {data} = data ^ pseudo_pad

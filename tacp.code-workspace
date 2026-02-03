@@ -34,6 +34,7 @@
 		},
 		"debug.allowBreakpointsEverywhere": true,
 		"rust-analyzer.cargo.features": "all",
+		"rust-analyzer.check.command": "clippy",
 		"rust-analyzer.cargo.cfgs": ["debug_assertions"],
 		"terminal.integrated.cwd": "${workspaceFolder}"
 	},

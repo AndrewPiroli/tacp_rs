@@ -15,3 +15,15 @@ zerocopy-derive = { version = "~0.8.27", default-features = false }
 default = ["obfuscation"]
 obfuscation = ["dep:md5"]
 dst-construct = []
+
+[lints.clippy]
+len_without_is_empty = "allow"
+too_many_arguments = "allow"
+doc_markdown = "allow"
+pedantic = "warn"
+
+# Fix these
+must_use_candidate = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+cast_possible_truncation = "allow"
