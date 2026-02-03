@@ -315,7 +315,7 @@ impl AuthenStartPacket {
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::*;
         use core::slice::from_raw_parts_mut as mk_slice;
-        let len = 8 + user.len() + port.len() + rem_addr.len() + data.len();
+        let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr() as *mut u8;
         if let Err(e) = Self::initialize(mk_slice(ptr, len), action, priv_level, authen_type, authen_service, user, port, rem_addr, data) {
