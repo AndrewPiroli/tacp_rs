@@ -22,7 +22,7 @@ pub mod obfuscation;
 pub mod argvalpair;
 
 #[cfg(feature = "dst-construct")]
-/// Helper macro to precheck narrowing casts.
+/// Helper macro to precheck packet components before performing narrowing casts.
 macro_rules! max {
     ($maxty:ty, $($val:expr),+) => {
         $(
@@ -37,6 +37,21 @@ macro_rules! max {
                 else { Ok(()) }?
             }
         )+
+    };
+}
+
+#[cfg(feature = "dst-construct")]
+/// Helper macro to precheck argument lengths before performing narrowing casts.
+macro_rules! arg_len {
+    ($args:ident) => {
+        for arg in $args.iter() {
+            if arg.len() > u8::MAX as usize {
+                Err(TacpErr::ParseError(
+                    "Argument can not fit in u8"
+                ))
+            }
+            else { Ok(()) }?
+        }
     };
 }
 
@@ -743,6 +758,7 @@ impl AuthorRequestPacket {
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
+        arg_len!(args);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
@@ -760,7 +776,6 @@ impl AuthorRequestPacket {
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
-            max!(u8, arg);
             let arg_len = arg.len();
             mem[fixed_part+arg_idx] = arg_len as u8;
             mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
@@ -774,7 +789,8 @@ impl AuthorRequestPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
-        max!(u8, user,  port, rem_addr, args); // fixme: arg len
+        max!(u8, user,  port, rem_addr, args);
+        arg_len!(args);
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -890,6 +906,7 @@ impl AuthorReplyPacket {
     pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u8, args);
         max!(u16, server_msg, data);
+        arg_len!(args);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
@@ -909,7 +926,6 @@ impl AuthorReplyPacket {
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, server_msg, data);
         for (arg_idx, arg) in args.iter().enumerate() {
-            max!(u8, arg);
             let arg_len = arg.len();
             mem[fixed_part+arg_idx] = arg_len as u8;
             mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
@@ -923,8 +939,9 @@ impl AuthorReplyPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
-        max!(u8, args); // fixme arg len
+        max!(u8, args);
         max!(u16, server_msg, data);
+        arg_len!(args);
         let len = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -1073,6 +1090,7 @@ impl AcctRequestPacket {
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
+        arg_len!(args);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
@@ -1091,7 +1109,6 @@ impl AcctRequestPacket {
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
-            max!(u8, arg);
             let arg_len = arg.len();
             mem[fixed_part+arg_idx] = arg_len as u8;
             mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
@@ -1106,6 +1123,7 @@ impl AcctRequestPacket {
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
         max!(u8, user,  port, rem_addr, args);
+        arg_len!(args);
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
