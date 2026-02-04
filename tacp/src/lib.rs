@@ -22,6 +22,7 @@ pub mod obfuscation;
 pub mod argvalpair;
 
 #[cfg(feature = "dst-construct")]
+/// Helper macro to precheck narrowing casts.
 macro_rules! max {
     ($maxty:ty, $($val:expr),+) => {
         $(
@@ -35,6 +36,17 @@ macro_rules! max {
                 }
                 else { Ok(()) }?
             }
+        )+
+    };
+}
+
+#[cfg(feature = "dst-construct")]
+/// Helper macro to populate packet fields.
+macro_rules! mem_cpy {
+    ($mem: ident, $ptr: ident, $($ssrc:ident),+) => {
+        $(
+            $mem[$ptr..($ptr+$ssrc.len())].copy_from_slice($ssrc);
+            $ptr += $ssrc.len();
         )+
     };
 }
@@ -283,7 +295,6 @@ impl AuthenStartPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u8, user, port, rem_addr, data);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
@@ -299,16 +310,7 @@ impl AuthenStartPacket {
         mem[6] = rem_addr.len() as u8;
         mem[7] = data.len() as u8;
         let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
-        unsafe {
-            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
-            varidata_ptr += user.len();
-            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
-            varidata_ptr += port.len();
-            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
-            varidata_ptr += rem_addr.len();
-            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), data.len());
-            varidata_ptr += data.len();
-        }
+        mem_cpy!(mem, varidata_ptr, user, port, rem_addr, data);
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }
@@ -414,7 +416,6 @@ impl AuthenReplyPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u16, serv_msg, data);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(serv_msg.len()+data.len()).unwrap();
@@ -431,15 +432,9 @@ impl AuthenReplyPacket {
         mem[3] = serv_msg_bytes[1];
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
-        unsafe {
-            let start = Self::size_for_metadata(0usize).unwrap();
-            let end = start + serv_msg.len();
-            copy_nonoverlapping(serv_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
-            let start = end;
-            let end = start + data.len();
-            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), end-start);
-            debug_assert!(end == len);
-        }
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        mem_cpy!(mem, varidata_ptr, serv_msg, data);
+        debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -547,7 +542,6 @@ impl AuthenContinuePacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u16, user_msg, data);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
@@ -563,15 +557,9 @@ impl AuthenContinuePacket {
         mem[2] = data_len_bytes[0];
         mem[3] = data_len_bytes[1];
         mem[4] = flags.0;
-        unsafe {
-            let start = Self::size_for_metadata(0usize).unwrap();
-            let end = start+user_msg.len();
-            copy_nonoverlapping(user_msg.as_ptr(), mem.as_mut_ptr().add(start), end-start);
-            let start = end;
-            let end = start + data.len();
-            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), end-start);
-            debug_assert!(end == len);
-        }
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        mem_cpy!(mem, varidata_ptr, user_msg, data);
+        debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -754,7 +742,6 @@ impl AuthorRequestPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u8, user,  port, rem_addr, args);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
@@ -776,18 +763,11 @@ impl AuthorRequestPacket {
             mem[varidata_ptr] = arg.len() as u8;
             varidata_ptr += 1;
         }
-        unsafe {
-            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
-            varidata_ptr += user.len();
-            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
-            varidata_ptr += port.len();
-            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
-            varidata_ptr += rem_addr.len();
-            for arg in args {
-                let arg_len = arg.len();
-                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
-                varidata_ptr += arg_len;
-            }
+        mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
+        for arg in args {
+            let arg_len = arg.len();
+            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
+            varidata_ptr += arg_len;
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -911,7 +891,6 @@ impl AuthorReplyPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u8, args);
         max!(u16, server_msg, data);
         let len = mem.len();
@@ -929,24 +908,17 @@ impl AuthorReplyPacket {
         mem[3] = server_msg_len_bytes[1];
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
-        unsafe {
-            let server_msg_start = Self::size_for_metadata(0usize).unwrap() + args.len();
-            let server_msg_end = server_msg_start + server_msg.len();
-            copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(server_msg_start), server_msg_end-server_msg_start);
-            let data_msg_start = server_msg_end;
-            let data_msg_end = data_msg_start + data.len();
-            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(data_msg_start), data_msg_end-data_msg_start);
-            let mut endptr = data_msg_end;
-            for (idx, arg) in args.iter().enumerate() {
-                let arg = *arg;
-                max!(u8, arg);
-                let len = arg.len();
-                mem[Self::size_for_metadata(0usize).unwrap() + idx] = len as u8;
-                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(endptr), len);
-                endptr += len;
-            }
-            debug_assert!(endptr == required_mem);
+        let mut vardata_ptr = Self::size_for_metadata(0usize).unwrap() + args.len();
+        mem_cpy!(mem, vardata_ptr, server_msg, data);
+        for (idx, arg) in args.iter().enumerate() {
+            let arg = *arg;
+            max!(u8, arg);
+            let len = arg.len();
+            mem[Self::size_for_metadata(0usize).unwrap() + idx] = len as u8;
+            mem[vardata_ptr..(vardata_ptr+len)].copy_from_slice(arg);
+            vardata_ptr += len;
         }
+        debug_assert!(vardata_ptr == required_mem);
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -1103,7 +1075,6 @@ impl AcctRequestPacket {
     }
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u8, user,  port, rem_addr, args);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
@@ -1126,18 +1097,11 @@ impl AcctRequestPacket {
             mem[varidata_ptr] = arg.len() as u8;
             varidata_ptr += 1;
         }
-        unsafe {
-            copy_nonoverlapping(user.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), user.len());
-            varidata_ptr += user.len();
-            copy_nonoverlapping(port.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), port.len());
-            varidata_ptr += port.len();
-            copy_nonoverlapping(rem_addr.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), rem_addr.len());
-            varidata_ptr += rem_addr.len();
-            for arg in args {
-                let arg_len = arg.len();
-                copy_nonoverlapping(arg.as_ptr(), mem.as_mut_ptr().add(varidata_ptr), arg_len);
-                varidata_ptr += arg_len;
-            }
+        mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
+        for arg in args {
+            let arg_len = arg.len();
+            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
+            varidata_ptr += arg_len;
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1257,7 +1221,6 @@ impl AcctReplyPacket {
 impl AcctReplyPacket {
     // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
     pub fn initialize(mem: &mut [u8], status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
-        use core::ptr::copy_nonoverlapping;
         max!(u16,  server_msg, data);
         let len = mem.len();
         let required_mem = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
@@ -1273,15 +1236,9 @@ impl AcctReplyPacket {
         mem[2] = data_len_bytes[0];
         mem[3] = data_len_bytes[1];
         mem[4] = status as u8;
-        unsafe {
-            let mut start = Self::size_for_metadata(0usize).unwrap();
-            let mut end = start+server_msg.len();
-            copy_nonoverlapping(server_msg.as_ptr(), mem.as_mut_ptr().add(start), server_msg.len());
-            start = end;
-            end = start + data.len();
-            copy_nonoverlapping(data.as_ptr(), mem.as_mut_ptr().add(start), data.len());
-            debug_assert!(end == required_mem);
-        }
+        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        mem_cpy!(mem, varidata_ptr, server_msg, data);
+        debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
