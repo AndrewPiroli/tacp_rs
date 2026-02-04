@@ -317,6 +317,7 @@ impl AuthenStartPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u8, user, port, rem_addr, data);
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -446,6 +447,7 @@ impl AuthenReplyPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u16, serv_msg, data);
         let len = Self::size_for_metadata(serv_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -577,6 +579,7 @@ impl AuthenContinuePacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u16, user_msg, data);
         let len = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -794,6 +797,7 @@ impl AuthorRequestPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u8, user,  port, rem_addr, args); // fixme: arg len
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -950,6 +954,8 @@ impl AuthorReplyPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u8, args); // fixme arg len
+        max!(u16, server_msg, data);
         let len = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -1141,6 +1147,7 @@ impl AcctRequestPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u8, user,  port, rem_addr, args);
         let len = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
@@ -1282,6 +1289,7 @@ impl AcctReplyPacket {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
         use core::ptr::NonNull;
+        max!(u16,  server_msg, data);
         let len = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         let layout = Layout::array::<u8>(len)?;
         let ptr = the_alloc.allocate(layout)?.as_ptr().cast::<u8>();
