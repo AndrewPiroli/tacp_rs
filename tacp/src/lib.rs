@@ -756,16 +756,13 @@ impl AuthorRequestPacket {
         mem[5] = port.len() as u8;
         mem[6] = rem_addr.len() as u8;
         mem[7] = args.len() as u8;
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
-        // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
-        for arg in args {
-            max!(u8, arg);
-            mem[varidata_ptr] = arg.len() as u8;
-            varidata_ptr += 1;
-        }
+        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
-        for arg in args {
+        for (arg_idx, arg) in args.iter().enumerate() {
+            max!(u8, arg);
             let arg_len = arg.len();
+            mem[fixed_part+arg_idx] = arg_len as u8;
             mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
             varidata_ptr += arg_len;
         }
@@ -908,17 +905,17 @@ impl AuthorReplyPacket {
         mem[3] = server_msg_len_bytes[1];
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
-        let mut vardata_ptr = Self::size_for_metadata(0usize).unwrap() + args.len();
-        mem_cpy!(mem, vardata_ptr, server_msg, data);
-        for (idx, arg) in args.iter().enumerate() {
-            let arg = *arg;
+        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = fixed_part + args.len();
+        mem_cpy!(mem, varidata_ptr, server_msg, data);
+        for (arg_idx, arg) in args.iter().enumerate() {
             max!(u8, arg);
-            let len = arg.len();
-            mem[Self::size_for_metadata(0usize).unwrap() + idx] = len as u8;
-            mem[vardata_ptr..(vardata_ptr+len)].copy_from_slice(arg);
-            vardata_ptr += len;
+            let arg_len = arg.len();
+            mem[fixed_part+arg_idx] = arg_len as u8;
+            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
+            varidata_ptr += arg_len;
         }
-        debug_assert!(vardata_ptr == required_mem);
+        debug_assert!(varidata_ptr == required_mem);
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
@@ -1090,16 +1087,13 @@ impl AcctRequestPacket {
         mem[6] = port.len() as u8;
         mem[7] = rem_addr.len() as u8;
         mem[9] = args.len() as u8;
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
-        // FIXME: Move this down to the other args loop and fill in the lengths at the same time.
-        for arg in args {
-            max!(u8, arg);
-            mem[varidata_ptr] = arg.len() as u8;
-            varidata_ptr += 1;
-        }
+        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
-        for arg in args {
+        for (arg_idx, arg) in args.iter().enumerate() {
+            max!(u8, arg);
             let arg_len = arg.len();
+            mem[fixed_part+arg_idx] = arg_len as u8;
             mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
             varidata_ptr += arg_len;
         }
