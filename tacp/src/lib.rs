@@ -28,11 +28,7 @@ macro_rules! max {
         $(
             {
                 if ($val.len()) > <$maxty>::MAX as usize {
-                    Err(TacpErr::ParseError(concat!(
-                        stringify!($val),
-                        " can not fit in ",
-                        stringify!($maxty)
-                    )))
+                    Err(TacpErr::OversizedComponent { component_name: stringify!($val), component_size: $val.len(), max_size: <$maxty>::MAX as usize })
                 }
                 else { Ok(()) }?
             }
@@ -44,11 +40,9 @@ macro_rules! max {
 /// Helper macro to precheck argument lengths before performing narrowing casts.
 macro_rules! arg_len {
     ($args:ident) => {
-        for arg in $args.iter() {
+        for (arg_idx, arg) in $args.iter().enumerate() {
             if arg.len() > u8::MAX as usize {
-                Err(TacpErr::ParseError(
-                    "Argument can not fit in u8"
-                ))
+                Err(TacpErr::OversizedArgument { arg_index: arg_idx, arg_len: arg.len() })
             }
             else { Ok(()) }?
         }
@@ -314,7 +308,7 @@ impl AuthenStartPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + data.len()).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         mem[0] = action as u8;
         mem[1] = priv_level;
@@ -435,7 +429,7 @@ impl AuthenReplyPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(serv_msg.len()+data.len()).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         let serv_msg_len = U16::new(serv_msg.len() as u16);
         let serv_msg_bytes = serv_msg_len.as_bytes();
@@ -561,7 +555,7 @@ impl AuthenContinuePacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user_msg.len() + data.len()).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         let user_msg_len_be = U16::new(user_msg.len() as u16);
         let data_len_be = U16::new(data.len() as u16);
@@ -762,7 +756,7 @@ impl AuthorRequestPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         mem[0] = method as u8;
         mem[1] = priv_level;
@@ -910,7 +904,7 @@ impl AuthorReplyPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(server_msg.len() + data.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         mem[0] = status as u8;
         mem[1] = args.len() as u8;
@@ -1094,7 +1088,7 @@ impl AcctRequestPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(user.len() + port.len() + rem_addr.len() + args.len() + args.iter().fold(0, |acc, arg|acc+arg.len())).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         mem[0] = flags as u8;
         mem[1] = method as u8;
@@ -1237,7 +1231,7 @@ impl AcctReplyPacket {
         let len = mem.len();
         let required_mem = Self::size_for_metadata(server_msg.len() + data.len()).unwrap();
         if len < required_mem {
-            return Err(TacpErr::BufferSize((required_mem, len)));
+            return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         let server_msg_len_be = U16::new(server_msg.len() as u16);
         let server_msg_len_bytes = server_msg_len_be.as_bytes();
@@ -1305,33 +1299,34 @@ pub enum AcctStatus {
 pub enum TacpErr {
     /// An error in parsing a packet or field with an explanation.
     ParseError(&'static str),
-    /// An error in allocation
+    /// An error in allocation.
     AllocError(&'static str),
-    /// The buffer is not large enough
-    /// .0 is the required size, .1 is the given size
-    BufferSize((usize, usize)),
-    /// Failure converting packet bytes to UTF-8 string
+    /// The provided buffer is not large enough to encode the packet.
+    BufferSize { required_size: usize, given_size: usize },
+    /// Failure converting packet bytes to UTF-8 string.
     Utf8ConversionError(alloc::str::Utf8Error),
+    /// Failure to encode a packet component due to it being too large to fit in the specified packet.
+    OversizedComponent { component_name: &'static str, component_size: usize, max_size: usize },
+    /// Failure to encode a packet argument due to it being too large.
+    /// All arguments have a maximum size of 255.
+    OversizedArgument { arg_index: usize, arg_len: usize },
 }
 
 impl core::fmt::Display for TacpErr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            TacpErr::ParseError(d) => {
-                f.write_str("Parse error: ")?;
-                f.write_str(d)
-            },
-            TacpErr::AllocError(d) => {
-                f.write_str("Alloc error: ")?;
-                f.write_str(d)
-            },
-            TacpErr::BufferSize((required, given)) => {
-                write!(f, "Buffer Size error: we need {required} bytes for this operation but were provided only {given}")
-            }
-            TacpErr::Utf8ConversionError(inner) => {
-                f.write_str("Failure in UTF-8 conversion: ")?;
-                inner.fmt(f)
-            }
+            Self::ParseError(d) =>
+                write!(f, "parsing failure: {d}"),
+            Self::AllocError(d) =>
+                write!(f, "allocation failure: {d}"),
+            Self::BufferSize { required_size, given_size } =>
+                write!(f, "{required_size} bytes required for this operation but were provided only {given_size}"),
+            Self::Utf8ConversionError(inner) =>
+                inner.fmt(f),
+            Self::OversizedComponent { component_name, component_size, max_size } =>
+                write!(f, "component {component_name} too large to be encoded into this packet. {component_size} > {max_size}"),
+            Self::OversizedArgument { arg_index, arg_len } =>
+                write!(f, "argument #{arg_index} with length {arg_len} too large (>255)"),
         }
     }
 }
