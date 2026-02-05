@@ -302,7 +302,18 @@ impl AuthenStartPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// |    data   |    255   |
     pub fn initialize(mem: &mut [u8], action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u8, user, port, rem_addr, data);
         let len = mem.len();
@@ -326,6 +337,17 @@ impl AuthenStartPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// |    data   |    255   |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -350,6 +372,17 @@ impl AuthenStartPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// |    data   |    255   |
     pub unsafe fn new(action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, action, priv_level, authen_type, authen_service, user, port, rem_addr, data)
     }}
@@ -425,7 +458,16 @@ impl AuthenReplyPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub fn initialize(mem: &mut [u8], status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16, serv_msg, data);
         let len = mem.len();
@@ -451,6 +493,15 @@ impl AuthenReplyPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -475,6 +526,15 @@ impl AuthenReplyPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new(status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, flags, serv_msg, data)
     }}
@@ -553,7 +613,16 @@ impl AuthenContinuePacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  user_msg |   65535  |
+    /// |    data   |   65535  |
     pub fn initialize(mem: &mut [u8], flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16, user_msg, data);
         let len = mem.len();
@@ -578,6 +647,15 @@ impl AuthenContinuePacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  user_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -602,6 +680,15 @@ impl AuthenContinuePacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  user_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new(flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, user_msg, data)
     }}
@@ -755,7 +842,19 @@ impl AuthorRequestPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
         arg_len!(args);
@@ -788,6 +887,18 @@ impl AuthorRequestPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -813,6 +924,18 @@ impl AuthorRequestPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new(method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
@@ -905,7 +1028,18 @@ impl AuthorReplyPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u8, args);
         max!(u16, server_msg, data);
@@ -941,6 +1075,18 @@ impl AuthorReplyPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -967,6 +1113,17 @@ impl AuthorReplyPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new(status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, args, server_msg, data)
     }}
@@ -1093,7 +1250,19 @@ impl AcctRequestPacket {
         unsafe { debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap()); }
         unsafe { Box::from_raw_in(core::ptr::slice_from_raw_parts_mut(ptr.cast::<u8>(), real_len), allocator) }
     }
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
         arg_len!(args);
@@ -1127,6 +1296,18 @@ impl AcctRequestPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1152,6 +1333,18 @@ impl AcctRequestPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation failure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |    user   |    255   |
+    /// |    port   |    255   |
+    /// |  rem_addr |    255   |
+    /// | # of args |    255   |
+    /// |  each arg |    255   |
     pub unsafe fn new(flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self>, TacpErr> {unsafe {
         Self::new_in(alloc::alloc::Global, flags, method, priv_level, authen_type, authen_svc, user, port, rem_addr, args)
     }}
@@ -1240,7 +1433,16 @@ impl AcctReplyPacket {
 }
 #[cfg(feature = "dst-construct")]
 impl AcctReplyPacket {
-    // In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
+    ///
+    /// # Errors
+    ///
+    /// Will return Err if not enough memory is provided to initilize the packet or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub fn initialize(mem: &mut [u8], status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16,  server_msg, data);
         let len = mem.len();
@@ -1265,6 +1467,15 @@ impl AcctReplyPacket {
         Ok(())
     }
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation fauilure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1289,6 +1500,15 @@ impl AcctReplyPacket {
         Ok(Box::from_raw_in(typed_ptr, the_alloc))
     }}
     #[doc=include_str!("untested_safety_msg.txt")]
+    ///
+    /// # Errors
+    ///
+    /// Will return Err on allocation fauilure or if a variable length component exceeeds the maximum encodable size for this packet.
+    ///
+    /// | Component | Max Size |
+    /// |:---------:|:--------:|
+    /// |  serv_msg |   65535  |
+    /// |    data   |   65535  |
     pub unsafe fn new(status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self>, TacpErr> { unsafe {
         Self::new_in(alloc::alloc::Global, status, server_msg, data)
     }}

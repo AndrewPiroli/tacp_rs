@@ -25,4 +25,3 @@ pedantic = "warn"
 # Fix these
 must_use_candidate = "allow"
 missing_panics_doc = "allow"
-missing_errors_doc = "allow"
