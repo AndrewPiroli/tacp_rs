@@ -314,10 +314,12 @@ impl AuthenStartPacket {
         mem[1] = priv_level;
         mem[2] = authen_type as u8;
         mem[3] = authen_service as u8;
+        #[allow(clippy::cast_possible_truncation)] {
         mem[4] = user.len() as u8;
         mem[5] = port.len() as u8;
         mem[6] = rem_addr.len() as u8;
         mem[7] = data.len() as u8;
+        }
         let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr, data);
         debug_assert!(varidata_ptr == required_mem);
@@ -431,8 +433,10 @@ impl AuthenReplyPacket {
         if len < required_mem {
             return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
+        #[allow(clippy::cast_possible_truncation)]
         let serv_msg_len = U16::new(serv_msg.len() as u16);
         let serv_msg_bytes = serv_msg_len.as_bytes();
+        #[allow(clippy::cast_possible_truncation)]
         let data_len = U16::new(data.len() as u16);
         let data_len_bytes = data_len.as_bytes();
         mem[0] = status as u8;
@@ -557,7 +561,9 @@ impl AuthenContinuePacket {
         if len < required_mem {
             return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
+        #[allow(clippy::cast_possible_truncation)]
         let user_msg_len_be = U16::new(user_msg.len() as u16);
+        #[allow(clippy::cast_possible_truncation)]
         let data_len_be = U16::new(data.len() as u16);
         let user_msg_len_bytes = user_msg_len_be.as_bytes();
         let data_len_bytes = data_len_be.as_bytes();
@@ -762,18 +768,21 @@ impl AuthorRequestPacket {
         mem[1] = priv_level;
         mem[2] = authen_type as u8;
         mem[3] = authen_svc as u8;
+        #[allow(clippy::cast_possible_truncation)] {
         mem[4] = user.len() as u8;
         mem[5] = port.len() as u8;
         mem[6] = rem_addr.len() as u8;
         mem[7] = args.len() as u8;
+        }
         let fixed_part = Self::size_for_metadata(0usize).unwrap();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
-            let arg_len = arg.len();
-            mem[fixed_part+arg_idx] = arg_len as u8;
-            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
-            varidata_ptr += arg_len;
+            #[allow(clippy::cast_possible_truncation)]
+            let arg_len = arg.len() as u8;
+            mem[fixed_part+arg_idx] = arg_len;
+            mem[varidata_ptr..(varidata_ptr+arg_len as usize)].copy_from_slice(arg);
+            varidata_ptr += arg_len as usize;
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -907,6 +916,7 @@ impl AuthorReplyPacket {
             return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
         mem[0] = status as u8;
+        #[allow(clippy::cast_possible_truncation)] {
         mem[1] = args.len() as u8;
         let server_msg_len_be = U16::new(server_msg.len() as u16);
         let data_len_be = U16::new(data.len() as u16);
@@ -916,14 +926,16 @@ impl AuthorReplyPacket {
         mem[3] = server_msg_len_bytes[1];
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
+        }
         let fixed_part = Self::size_for_metadata(0usize).unwrap();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, server_msg, data);
         for (arg_idx, arg) in args.iter().enumerate() {
-            let arg_len = arg.len();
-            mem[fixed_part+arg_idx] = arg_len as u8;
-            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
-            varidata_ptr += arg_len;
+            #[allow(clippy::cast_possible_truncation)]
+            let arg_len = arg.len() as u8;
+            mem[fixed_part+arg_idx] = arg_len;
+            mem[varidata_ptr..(varidata_ptr+arg_len as usize)].copy_from_slice(arg);
+            varidata_ptr += arg_len as usize;
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1095,18 +1107,21 @@ impl AcctRequestPacket {
         mem[2] = priv_level;
         mem[3] = authen_type as u8;
         mem[4] = authen_svc as u8;
+        #[allow(clippy::cast_possible_truncation)] {
         mem[5] = user.len() as u8;
         mem[6] = port.len() as u8;
         mem[7] = rem_addr.len() as u8;
         mem[9] = args.len() as u8;
+        }
         let fixed_part = Self::size_for_metadata(0usize).unwrap();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
-            let arg_len = arg.len();
-            mem[fixed_part+arg_idx] = arg_len as u8;
-            mem[varidata_ptr..(varidata_ptr+arg_len)].copy_from_slice(arg);
-            varidata_ptr += arg_len;
+            #[allow(clippy::cast_possible_truncation)]
+            let arg_len = arg.len() as u8;
+            mem[fixed_part+arg_idx] = arg_len;
+            mem[varidata_ptr..(varidata_ptr+arg_len as usize)].copy_from_slice(arg);
+            varidata_ptr += arg_len as usize;
         }
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1233,8 +1248,10 @@ impl AcctReplyPacket {
         if len < required_mem {
             return Err(TacpErr::BufferSize { required_size: required_mem, given_size: len });
         }
+        #[allow(clippy::cast_possible_truncation)]
         let server_msg_len_be = U16::new(server_msg.len() as u16);
         let server_msg_len_bytes = server_msg_len_be.as_bytes();
+        #[allow(clippy::cast_possible_truncation)]
         let data_len_be = U16::new(data.len() as u16);
         let data_len_bytes = data_len_be.as_bytes();
         mem[0] = server_msg_len_bytes[0];
