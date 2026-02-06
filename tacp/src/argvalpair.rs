@@ -32,25 +32,25 @@ impl<'a> From<&'a str> for Value<'a> {
 }
 
 impl Value<'_> {
-    pub fn as_str(&self) -> Option<&str> {
+    pub const fn as_str(&self) -> Option<&str> {
         if let Self::Str(s) = self {
             Some(s)
         }
         else { None }
     }
-    pub fn as_num(&self) -> Option<f64> {
+    pub const fn as_num(&self) -> Option<f64> {
         if let Self::Numeric(n) = self {
             Some(*n)
         }
         else { None }
     }
-    pub fn as_bool(&self) -> Option<bool> {
+    pub const fn as_bool(&self) -> Option<bool> {
         if let Self::Boolean(b) = self {
             Some(*b)
         }
         else { None }
     }
-    pub fn as_ipaddr(&self) -> Option<IpAddr> {
+    pub const fn as_ipaddr(&self) -> Option<IpAddr> {
         if let Self::IPAddr(ip) = self {
             Some(*ip)
         }
@@ -161,7 +161,7 @@ pub struct ArgValPairIter<'a> {
     data: &'a [u8],
 }
 impl<'a> ArgValPairIter<'a> {
-    pub fn new(limit: u8, lengths: &'a [u8], data: &'a [u8]) -> Self {
+    pub const fn new(limit: u8, lengths: &'a [u8], data: &'a [u8]) -> Self {
         Self {
             current: 0,
             data_idx: 0,

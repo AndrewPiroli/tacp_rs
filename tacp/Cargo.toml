@@ -21,6 +21,5 @@ len_without_is_empty = "allow"
 too_many_arguments = "allow"
 doc_markdown = "allow"
 pedantic = "warn"
-
-# Fix these
 must_use_candidate = "allow"
+nursery = "warn"
