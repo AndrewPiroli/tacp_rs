@@ -287,7 +287,7 @@ impl AuthenStartPacket {
         }
         Some(&self.varidata[start..end])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -295,6 +295,7 @@ impl AuthenStartPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthenStartPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -314,6 +315,7 @@ impl AuthenStartPacket {
     /// |    port   |    255   |
     /// |  rem_addr |    255   |
     /// |    data   |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u8, user, port, rem_addr, data);
         let len = mem.len();
@@ -348,6 +350,7 @@ impl AuthenStartPacket {
     /// |    port   |    255   |
     /// |  rem_addr |    255   |
     /// |    data   |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, action: AuthenStartAction, priv_level: PrivLevel, authen_type: AuthenType, authen_service: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -443,7 +446,7 @@ impl AuthenReplyPacket {
         }
         Some(&self.varidata[start..end])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.data_len.get() as usize + self.serv_msg_len.get() as usize).unwrap()
     }
@@ -451,6 +454,7 @@ impl AuthenReplyPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthenReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -468,6 +472,7 @@ impl AuthenReplyPacket {
     /// |:---------:|:--------:|
     /// |  serv_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16, serv_msg, data);
         let len = mem.len();
@@ -502,6 +507,7 @@ impl AuthenReplyPacket {
     /// |:---------:|:--------:|
     /// |  serv_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthenReplyStatus, flags: AuthenReplyFlags, serv_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -598,7 +604,7 @@ impl AuthenContinuePacket {
         }
         Some(&self.varidata[start..end])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.user_msg_len.get() as usize + self.data_len.get() as usize).unwrap()
     }
@@ -606,6 +612,7 @@ impl AuthenContinuePacket {
 #[cfg(feature = "dst-construct")]
 impl AuthenContinuePacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -623,6 +630,7 @@ impl AuthenContinuePacket {
     /// |:---------:|:--------:|
     /// |  user_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16, user_msg, data);
         let len = mem.len();
@@ -656,6 +664,7 @@ impl AuthenContinuePacket {
     /// |:---------:|:--------:|
     /// |  user_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AuthenContinueFlags, user_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -827,7 +836,7 @@ impl AuthorRequestPacket {
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -835,6 +844,7 @@ impl AuthorRequestPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthorRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -855,6 +865,7 @@ impl AuthorRequestPacket {
     /// |  rem_addr |    255   |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
         arg_len!(args);
@@ -899,6 +910,7 @@ impl AuthorRequestPacket {
     /// |  rem_addr |    255   |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1013,7 +1025,7 @@ impl AuthorReplyPacket {
             self.arg_cnt as usize + self.server_msg_len.get() as usize + self.data_len.get() as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -1021,6 +1033,7 @@ impl AuthorReplyPacket {
 #[cfg(feature = "dst-construct")]
 impl AuthorReplyPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -1040,6 +1053,7 @@ impl AuthorReplyPacket {
     /// |    data   |   65535  |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u8, args);
         max!(u16, server_msg, data);
@@ -1087,6 +1101,7 @@ impl AuthorReplyPacket {
     /// |    data   |   65535  |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AuthorStatus, args: &[&[u8]], server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1235,7 +1250,7 @@ impl AcctRequestPacket {
             self.arg_cnt as usize + self.user_len as usize + self.port_len as usize + self.rem_addr_len as usize;
         ArgValPairIter::new(self.arg_cnt, &self.varidata[lengths_range], &self.varidata[data_range_base..])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -1243,6 +1258,7 @@ impl AcctRequestPacket {
 #[cfg(feature = "dst-construct")]
 impl AcctRequestPacket {
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
@@ -1263,6 +1279,7 @@ impl AcctRequestPacket {
     /// |  rem_addr |    255   |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<(), TacpErr> {
         max!(u8, user,  port, rem_addr, args);
         arg_len!(args);
@@ -1308,6 +1325,7 @@ impl AcctRequestPacket {
     /// |  rem_addr |    255   |
     /// | # of args |    255   |
     /// |  each arg |    255   |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, flags: AcctFlags, method: AuthorMethod, priv_level: PrivLevel, authen_type: AuthenType, authen_svc: AuthenService, user: &[u8], port: &[u8], rem_addr: &[u8], args:&[&[u8]]) -> Result<Box<Self, A>, TacpErr> {unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1426,7 +1444,7 @@ impl AcctReplyPacket {
         }
         Some(&self.varidata[start..end])
     }
-    #[allow(clippy::missing_panics_doc, reason = "infallible")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // self had to be constructed so it can not be over the isize limit
     pub fn len(&self) -> usize {
         Self::size_for_metadata(self.varidata.len()).unwrap()
     }
@@ -1443,6 +1461,7 @@ impl AcctReplyPacket {
     /// |:---------:|:--------:|
     /// |  serv_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck + debug_assert
     pub fn initialize(mem: &mut [u8], status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<(), TacpErr> {
         max!(u16,  server_msg, data);
         let len = mem.len();
@@ -1476,6 +1495,7 @@ impl AcctReplyPacket {
     /// |:---------:|:--------:|
     /// |  serv_msg |   65535  |
     /// |    data   |   65535  |
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // size_for_metadata only called after length ck
     pub unsafe fn new_in<A: Allocator>(the_alloc: A, status: AcctStatus, server_msg: &[u8], data: &[u8]) -> Result<Box<Self, A>, TacpErr> { unsafe {
         use core::alloc::Layout;
         use core::slice::from_raw_parts_mut as mk_slice;
@@ -1514,6 +1534,7 @@ impl AcctReplyPacket {
     }}
 
     #[doc=include_str!("untested_safety_msg.txt")]
+    #[allow(clippy::missing_panics_doc, reason = "infallible")] // debug_assert + we shouldn't be having layout issues
     pub unsafe fn boxed_to_bytes<A: Allocator>(s: Box<Self, A>) -> Box<[u8], A> {
         use alloc::alloc::Layout;
         let real_len = s.len();
