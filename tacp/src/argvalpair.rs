@@ -3,6 +3,7 @@
 //! TACACS+ values are stringly typed. This module attempts to parse things in a more reasonable
 //! way while still following the RFC
 use alloc::string::String;
+use alloc::borrow::Cow;
 use core::net::IpAddr;
 
 use crate::TacpErr;
@@ -12,7 +13,7 @@ pub enum Value<'a> {
     Numeric(f64),
     Boolean(bool),
     IPAddr(IpAddr),
-    Str(&'a str),
+    Str(Cow<'a, str>),
     Empty,
 }
 
@@ -27,12 +28,12 @@ impl<'a> From<&'a str> for Value<'a> {
         if let Ok(num) = value.parse::<f64>() {
             return Self::Numeric(num);
         }
-        Self::Str(value)
+        Self::Str(Cow::Borrowed(value))
     }
 }
 
 impl Value<'_> {
-    pub const fn as_str(&self) -> Option<&str> {
+    pub fn as_str(&self) -> Option<&str> {
         if let Self::Str(s) = self {
             Some(s)
         }

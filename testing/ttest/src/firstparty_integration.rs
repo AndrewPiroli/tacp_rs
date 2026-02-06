@@ -1,5 +1,6 @@
 use crate::ipc::*;
 use crate::process::*;
+use std::borrow::Cow;
 use std::net::SocketAddr;
 pub fn launch_server_with_test_mode(addr: &SocketAddr) -> ProcessHandle {
     HeardFromServer.store(false, std::sync::atomic::Ordering::Release);
@@ -81,7 +82,7 @@ pub fn test_avp_parse_and_fmt() -> bool {
     use tacp::argvalpair::*;
     // Basic test cases
     let basic = [
-        ("test=abc", ("test", false, Value::Str("abc"))),
+        ("test=abc", ("test", false, Value::Str(Cow::Borrowed("abc")))),
         ("abc=123", ("abc", false, Value::Numeric(123.0))),
         ("working*true", ("working", true, Value::Boolean(true))),
         ("floating*4321.949", ("floating", true, Value::Numeric(4321.949))),
