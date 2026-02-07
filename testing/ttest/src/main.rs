@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         use std::sync::atomic::Ordering::*;
         if HeardFromServer.load(Acquire) { break; }
-        std::thread::sleep(std::time::Duration::from_secs(1 * (10 - tries)));
+        std::thread::sleep(std::time::Duration::from_secs(10 - tries));
         if tries == 0 { panic!("server never checked in"); }
         tries -= 1;
     }

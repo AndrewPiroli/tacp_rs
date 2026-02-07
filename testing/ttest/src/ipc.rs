@@ -17,6 +17,7 @@ pub enum Who {
     Server,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 pub enum AAA {
     Authen,
@@ -36,7 +37,7 @@ pub struct Info {
 impl PartialEq for Info {
     fn eq(&self, other: &Self) -> bool {
         // for otherdata we can do Some("") == None
-        let emptystr = |x: &String|x.len() == 0;
+        let emptystr = |x: &String|x.is_empty();
         let otherdata = self.otherdata == other.otherdata || (self.otherdata.is_none() && other.otherdata.as_ref().is_some_and(emptystr)) || (self.otherdata.as_ref().is_some_and(emptystr) && other.otherdata.is_none());
         self.who == other.who && self.ty == other.ty && self.success == other.success && self.user == other.user && otherdata
     }

@@ -55,7 +55,7 @@ fn main() {
     let blank = "";
 
     let mut addr = args.server.clone();
-    addr.push_str(":");
+    addr.push(':');
     addr.push_str(&args.port.to_string());
     let mut stream = TcpStream::connect(addr).unwrap();
 
@@ -153,7 +153,7 @@ fn main() {
             body
         }
     };
-    util::encrypt(&mut pkt_bytes, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header: header });
+    util::encrypt(&mut pkt_bytes, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header });
     let pkt = util::alloc_pkt(header, &pkt_bytes);
     util::send_packet(&mut stream, &pkt).unwrap();
     drop(pkt);
@@ -166,7 +166,7 @@ fn main() {
             break;
         }
         seq_no += 1;
-        util::encrypt(&mut recv_body, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header: header });
+        util::encrypt(&mut recv_body, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header });
         match expected_reply {
             NextPacket::AuthenReply => {
                 let recv_parsed = AuthenReplyPacket::try_ref_from_bytes(&recv_body);
@@ -314,7 +314,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), user_msg.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
-            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
+            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
                 println!("Error sending reply: {:?}", e);
@@ -339,7 +339,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), username.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
-            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
+            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
                 println!("Error sending reply: {:?}", e);
@@ -364,7 +364,7 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), pass.as_bytes(), blank.as_bytes()).unwrap())
             };
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);
-            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key: key, header: reply_header });
+            util::encrypt(&mut reply_body, SupportedEncryption::RfcMd5 { key, header: reply_header });
             let pkt = util::alloc_pkt(reply_header, &reply_body);
             if let Err(e) = util::send_packet(stream,&pkt) {
                 println!("Error sending reply: {:?}", e);
@@ -375,7 +375,6 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
         },
         AuthenReplyStatus::FOLLOW => {
             println!("Authen Follow not implemented");
-            return;
         },
     }
 }

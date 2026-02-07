@@ -1,7 +1,7 @@
 use pcap_file::pcap::*;
 use tacp::*;
 
-const PCAPS: &[(&'static str, &'static [u8], &'static [u8])] = &[
+const PCAPS: &[(&str, &[u8], &[u8])] = &[
     ("werberblog.net_tacacs.pcap", include_bytes!("../pcaps/werberblog.net_tacacs.pcap"), b"John3.16")
 ];
 
@@ -14,10 +14,8 @@ pub fn check_pcap() -> bool {
             if let Ok(pkt) = pkt {
                 let srcprt = u16::from_be_bytes([pkt.data[34], pkt.data[35]]);
                 let dstprt = u16::from_be_bytes([pkt.data[36], pkt.data[37]]);
-                if (srcprt == 49 || dstprt == 49) && pkt.data.len() > 60 {
-                    if !parse_tacacs_pkt(&pkt.data[54..], *tacacs_key) {
-                        return false;
-                    }
+                if (srcprt == 49 || dstprt == 49) && pkt.data.len() > 60 && !parse_tacacs_pkt(&pkt.data[54..], tacacs_key) {
+                    return false;
                 }
             }
         }

@@ -37,7 +37,7 @@ pub fn alloc_pkt(header: PacketHeader, pre_encrypted_body: &[u8]) -> Vec<u8> {
 }
 
 pub fn send_packet(s: &mut TcpStream, bytes: &[u8]) -> std::io::Result<()> {
-    s.write_all(&bytes)
+    s.write_all(bytes)
 }
 
 pub fn recv_packet(s: &mut TcpStream) -> anyhow::Result<(PacketHeader, Box<[u8]>)> {
@@ -58,8 +58,7 @@ pub fn recv_packet(s: &mut TcpStream) -> anyhow::Result<(PacketHeader, Box<[u8]>
     if len > MAXPKTLEN {
         bail!("header len too big {len} > {MAXPKTLEN}");
     }
-    let mut ret = Vec::with_capacity(len);
-    ret.resize(len, 0);
+    let mut ret = vec![0;len];
     s.read_exact(&mut ret)?;
     Ok((header, ret.into_boxed_slice()))
 }

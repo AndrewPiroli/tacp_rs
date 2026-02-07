@@ -367,7 +367,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
 #[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
     use zerocopy::*;
-    assert!(header.seq_no % 2 == 0); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
+    assert!(header.seq_no.is_multiple_of(2)); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
     let mut reply = Vec::with_capacity(header.length.get() as usize);
     reply.resize(12, 0);
     header.write_to_prefix(&mut reply).unwrap();
@@ -432,7 +432,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
             );
             let ret = unsafe {
                 if check_auth(&cstate.authen_info, cstate.addr.ip()) {
-                    testsupport::report(PacketType::AUTHEN, true, &cstate.authen_info.username.as_ref().unwrap(), "").await;
+                    testsupport::report(PacketType::AUTHEN, true, cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::PASS,
                         AuthenReplyFlags(0),
@@ -441,7 +441,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                     ).unwrap()
                 }
                 else {
-                    testsupport::report(PacketType::AUTHEN, false, &cstate.authen_info.username.as_ref().unwrap(), "").await;
+                    testsupport::report(PacketType::AUTHEN, false, cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
                         AuthenReplyStatus::FAIL,
                         AuthenReplyFlags(0),
@@ -606,11 +606,9 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
     let user = pkt.get_user().unwrap_or(&[]);
     let user = String::from_utf8_lossy(user).into_owned();
     let mut to_log = String::new(); // this is a bit gross
-    for x in pkt.iter_args() {
-        if let Ok(y) = x {
-            to_log.push_str(&y.to_string());
-            to_log.push(';');
-        }
+    for x in pkt.iter_args().flatten() {
+        to_log.push_str(&x.to_string());
+        to_log.push(';');
     }
     let ret;
     { // scoped because Box<dyn ...> ruins async
@@ -661,7 +659,7 @@ impl core::fmt::Display for TacpServerError {
         match self {
             TacpServerError::ParseError(desc) => {
                 f.write_str("Parsing error: ")?;
-                f.write_str(&desc)
+                f.write_str(desc)
             },
         }
     }

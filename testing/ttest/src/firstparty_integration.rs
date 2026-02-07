@@ -4,8 +4,7 @@ use std::borrow::Cow;
 use std::net::SocketAddr;
 pub fn launch_server_with_test_mode(addr: &SocketAddr) -> ProcessHandle {
     HeardFromServer.store(false, std::sync::atomic::Ordering::Release);
-    let server = cargo_run("tserver", &[], &[("TACP_SERVER_TEST", &addr.to_string())]);
-    server
+    cargo_run("tserver", &[], &[("TACP_SERVER_TEST", &addr.to_string())])
 }
 
 pub fn test_pap_authen_success() -> bool {
@@ -71,9 +70,9 @@ pub fn native_client_test(inverted: bool, args: &[&str], expected: Info) -> bool
             found = true;
             return false;
         }
-        return true;
+        true
     });
-    found == !inverted
+    found != inverted
 }
 
 pub fn test_avp_parse_and_fmt() -> bool {
@@ -92,25 +91,26 @@ pub fn test_avp_parse_and_fmt() -> bool {
     ];
     for (toparse, (arg, optional, val)) in basic {
         let parsed = ArgValPair::try_from(toparse);
-        if parsed.is_err() {
-            eprintln!("Failed AVP test case: \"{}\" should be \"{}\" opt={} \"{:?}\"", toparse, arg, optional, val);
-            eprintln!("{:?}", parsed.unwrap_err());
-            return false;
-        }
-        else {
-            let parsed = parsed.unwrap();
-            if parsed.argument != arg {
-                eprintln!("parsed argument doesn't match: {}!={}", parsed.argument, arg);
+        match parsed {
+            Ok(parsed) => {
+                if parsed.argument != arg {
+                    eprintln!("parsed argument doesn't match: {}!={}", parsed.argument, arg);
+                    return false;
+                }
+                if parsed.optional != optional {
+                    eprintln!("parsed optional value doesn't match: {}!={}", parsed.optional, optional);
+                    return false;
+                }
+                if parsed.value != val {
+                    eprintln!("parsed value doesn't match: {:?}!={:?}", parsed.value, val);
+                    return false;
+                }
+            },
+            Err(err) => {
+                eprintln!("Failed AVP test case: \"{}\" should be \"{}\" opt={} \"{:?}\"", toparse, arg, optional, val);
+                eprintln!("{err:?}");
                 return false;
-            }
-            if parsed.optional != optional {
-                eprintln!("parsed optional value doesn't match: {}!={}", parsed.optional, optional);
-                return false;
-            }
-            if parsed.value != val {
-                eprintln!("parsed value doesn't match: {:?}!={:?}", parsed.value, val);
-                return false;
-            }
+            },
         }
     }
     let v4_addrs = [

@@ -232,10 +232,8 @@ pub(crate) fn authenticate(policy: &Policy, client: IpAddr, user: &str, pass: &S
 }
 
 fn check_group_membership(policy: &Policy, user: &str, group: &str) -> bool {
-    if let Some(user) = policy.users.get(user) {
-        if let Some(user_groups) = &user.groups {
-            return user_groups.iter().any(|user_group|user_group.eq_ignore_ascii_case(group));
-        }
+    if let Some(user) = policy.users.get(user) && let Some(user_groups) = &user.groups {
+        return user_groups.iter().any(|user_group|user_group.eq_ignore_ascii_case(group));
     }
     false
 }
