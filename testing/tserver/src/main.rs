@@ -249,7 +249,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = unsafe { AuthenReplyPacket::boxed_to_bytes(pkt) };
+                let mut packet_body = AuthenReplyPacket::boxed_to_bytes(pkt);
                 obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             },
@@ -259,12 +259,12 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
             }
             SrvPacket::AuthenGenericError(msg) => {
                 terminate_session = true;
-                let mut pkt = unsafe { AuthenReplyPacket::boxed_to_bytes(AuthenReplyPacket::new(
+                let mut pkt = AuthenReplyPacket::boxed_to_bytes(AuthenReplyPacket::new(
                     AuthenReplyStatus::ERROR,
                     AuthenReplyFlags(0),
                     &msg.unwrap_or("Unimplemented".into()),
                     &Vec::with_capacity(0)
-                ).unwrap())};
+                ).unwrap());
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHEN,
@@ -286,18 +286,18 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = unsafe { AuthorReplyPacket::boxed_to_bytes(pkt) };
+                let mut packet_body = AuthorReplyPacket::boxed_to_bytes(pkt);
                 obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             },
             SrvPacket::AuthorGenericError(msg) => {
                 terminate_session = true;
-                let mut pkt = unsafe {AuthorReplyPacket::boxed_to_bytes(AuthorReplyPacket::new(
+                let mut pkt = AuthorReplyPacket::boxed_to_bytes(AuthorReplyPacket::new(
                     AuthorStatus::ERROR,
                     &Vec::with_capacity(0),
                     &msg.unwrap_or("Generic error".into()),
                     &Vec::with_capacity(0),
-                ).unwrap())};
+                ).unwrap());
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::AUTHOR,
@@ -319,17 +319,17 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                     session_id: cstate.session,
                     length: U32::new(pkt.len() as u32),
                 };
-                let mut packet_body = unsafe { AcctReplyPacket::boxed_to_bytes(pkt) };
+                let mut packet_body = AcctReplyPacket::boxed_to_bytes(pkt);
                 obfuscate_in_place(&header, key.as_bytes(), &mut packet_body);
                 send_reply(&mut stream, header, &packet_body).await.unwrap();
             }
             SrvPacket::AcctGenericError(msg) => {
                 terminate_session = true;
-                let mut pkt = unsafe { AcctReplyPacket::boxed_to_bytes(AcctReplyPacket::new(
+                let mut pkt = AcctReplyPacket::boxed_to_bytes(AcctReplyPacket::new(
                     AcctStatus::ERROR,
                     &msg.unwrap_or("Generic error".into()),
                     &Vec::with_capacity(0),
-                ).unwrap())};
+                ).unwrap());
                 let header = PacketHeader {
                     version: parsed_header.version,
                     ty: PacketType::ACCT,
@@ -413,7 +413,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
             }
             cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into());
             debug!(username = ?cstate.authen_info.username, "Client provides username");
-            let ret = unsafe { AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, AuthenReplyFlags::REPLY_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0)).unwrap() };
+            let ret = AuthenReplyPacket::new(AuthenReplyStatus::GETPASS, AuthenReplyFlags::REPLY_NOECHO, &Vec::from(b"Enter pass"), &Vec::with_capacity(0)).unwrap();
             cstate.authen_state = AuthenState::ASCIIGETPASS;
             info!("requesting ascii password from client");
             return SrvPacket::AuthenReply(ret);
@@ -430,7 +430,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
             cstate.authen_info.pass = Some(
                 SString(String::from_utf8_lossy(pkt.get_user_msg().unwrap()).into())
             );
-            let ret = unsafe {
+            let ret =
                 if check_auth(&cstate.authen_info, cstate.addr.ip()) {
                     testsupport::report(PacketType::AUTHEN, true, cstate.authen_info.username.as_ref().unwrap(), "").await;
                     AuthenReplyPacket::new(
@@ -448,7 +448,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
                         &Vec::from(b"Authentication Fail"),
                         &Vec::with_capacity(0),
                     ).unwrap()
-                }};
+                };
             return SrvPacket::AuthenReply(ret);
         },
     }
@@ -476,23 +476,23 @@ fn check_auth(info: &AuthenInfo, client: IpAddr) -> bool {
 
 async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> SrvPacket {
     if pkt.get_user().is_none() {
-        let ret = unsafe { AuthenReplyPacket::new(
+        let ret = AuthenReplyPacket::new(
             AuthenReplyStatus::GETUSER,
             AuthenReplyFlags(0),
             &Vec::from(b"Username required: "),
             &Vec::with_capacity(0),
-        ).unwrap()};
+        ).unwrap();
         cstate.authen_state = AuthenState::ASCIIGETUSER;
         return SrvPacket::AuthenReply(ret);
     }
     cstate.authen_info.username = Some(String::from_utf8_lossy(pkt.get_user().unwrap()).into());
     if cstate.authen_info.pass.is_none() {
-        let ret = unsafe { AuthenReplyPacket::new(
+        let ret = AuthenReplyPacket::new(
             AuthenReplyStatus::GETPASS,
             AuthenReplyFlags::REPLY_NOECHO,
             &Vec::from(b"Enter pass"),
             &Vec::with_capacity(0),
-        ).unwrap()};
+        ).unwrap();
         cstate.authen_state = AuthenState::ASCIIGETPASS;
         return SrvPacket::AuthenReply(ret);
     }
@@ -501,19 +501,19 @@ async fn authen_start_ascii(pkt: &AuthenStartPacket, cstate: &mut Client) -> Srv
 
 async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket {
     if pkt.get_user().is_none() {
-        let ret = unsafe { AuthenReplyPacket::new(
+        let ret = AuthenReplyPacket::new(
             AuthenReplyStatus::ERROR,
             AuthenReplyFlags(0),
             &Vec::from(b"Failed to supply username"),
             &Vec::with_capacity(0),
-        ).unwrap()};
+        ).unwrap();
         return SrvPacket::AuthenReply(ret);
     }
     let info = AuthenInfo {
         username: Some(String::from_utf8_lossy(pkt.get_user().unwrap()).into()),
         pass: Some(SString(String::from_utf8_lossy(pkt.get_data().unwrap_or_default()).into())),
     };
-    let ret = unsafe {
+    let ret =
         if check_auth(&info, cstate.addr.ip()) {
             testsupport::report(PacketType::AUTHEN, true, info.username.as_ref().unwrap(), "").await;
             AuthenReplyPacket::new(
@@ -531,7 +531,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
                 &Vec::from(b"PAP Authentication FAIL"),
                 &Vec::with_capacity(0),
             ).unwrap()
-        }};
+        };
     return SrvPacket::AuthenReply(ret);
 }
 
@@ -558,19 +558,19 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
     let user = String::from_utf8_lossy(user).into_owned();
     if cmd.is_none() {
         testsupport::report(tacp::PacketType::AUTHOR, false, &user, "No Command AV Pair").await;
-        return unsafe { SrvPacket::AuthorReply(AuthorReplyPacket::new(
+        return SrvPacket::AuthorReply(AuthorReplyPacket::new(
             AuthorStatus::FAIL, // fixme; use reply
             &Vec::with_capacity(0),
             &Vec::from("No cmd argument. Can not authorize!"),
             &Vec::with_capacity(0),
-        ).unwrap())};
+        ).unwrap());
     }
     // Stupid lifetimes
     let cmd = cmd.unwrap().value;
     let cmd = cmd.as_str().unwrap();
 
     let res = policy::enforce::authorize(POLICY.get().unwrap(), cstate.addr.ip(), &String::from_utf8_lossy(pkt.get_user().unwrap_or_default()), cmd);
-    let ret = unsafe { if res {
+    let ret = if res {
         testsupport::report(tacp::PacketType::AUTHOR, true, &user, "").await;
         AuthorReplyPacket::new(
             AuthorStatus::PASS_ADD,
@@ -587,7 +587,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
             &Vec::from(b"Denied"),
             &Vec::with_capacity(0),
         ).unwrap()
-    }};
+    };
     return SrvPacket::AuthorReply(ret);
 }
 
@@ -621,19 +621,19 @@ async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>,
         ).await;
         ret = match x {
             Ok(_) => {
-                unsafe { AcctReplyPacket::new(
+                AcctReplyPacket::new(
                     AcctStatus::SUCCESS,
                     &Vec::from(b"Ok"),
                     &Vec::with_capacity(0),
-                ).unwrap() }
+                ).unwrap()
             },
             Err(ref e) => {
                 error!("{e:?}");
-                unsafe { AcctReplyPacket::new(
+                AcctReplyPacket::new(
                     AcctStatus::ERROR,
                     &Vec::from(b"Failed"),
                     &Vec::with_capacity(0)
-                    ).unwrap() }
+                    ).unwrap()
             }
         };
     }

@@ -159,7 +159,7 @@ pub fn test_avp_parse_and_fmt() -> bool {
 }
 
 /// This test makes sure you can't construct a Packet with components too large to have their length encoded properly for that packet type.
-pub fn packet_data_overflow() -> bool { unsafe {
+pub fn packet_data_overflow() -> bool {
     static empty: &[u8;0] = &[0;0];
     static big8: &[u8;266] = &[0;266];
     static big16: &[u8;65536] = &[0;65536];
@@ -194,7 +194,7 @@ pub fn packet_data_overflow() -> bool { unsafe {
         AcctReplyPacket::new(AcctStatus::SUCCESS, big16, empty).is_err(),
         AcctReplyPacket::new(AcctStatus::SUCCESS, empty, big16).is_err(),
     ].iter().all(|x|*x)
-}}
+}
 
 /*
 fn has_python_client() -> bool {

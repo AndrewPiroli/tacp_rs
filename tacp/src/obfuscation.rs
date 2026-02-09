@@ -59,10 +59,9 @@
 use crate::PacketHeader;
 use md5::{digest::core_api::CoreWrapper, Digest, Md5, Md5Core};
 
-
 /// Iterator that generates the pseudo random PAD for obfuscation of TACACS+ packets
 pub struct TacacsMd5Pad<'a> {
-    shared_secret: &'a[u8],
+    shared_secret: &'a [u8],
     header_data: [u8; 6], // idx 0-3 session id; idx 4 version, idx 5 sequence no
     remaining: u32,
     md5_state: CoreWrapper<Md5Core>,
@@ -70,6 +69,12 @@ pub struct TacacsMd5Pad<'a> {
     buf_ptr: u8,
 }
 impl<'a> TacacsMd5Pad<'a> {
+    /// Creates a new MD5 pseudorandom pad generator for TACACS+ obfuscation.
+    ///
+    /// # Parameters
+    ///
+    /// - `header` - The packet header containing session ID and sequence number
+    /// - `shared_secret` - The shared secret key for obfuscation
     pub fn new(header: &PacketHeader, shared_secret: &'a [u8]) -> Self {
         let mut s = TacacsMd5Pad {
             shared_secret,
@@ -101,18 +106,18 @@ impl Iterator for TacacsMd5Pad<'_> {
         if p > 0 {
             self.buf_ptr -= 1;
             self.remaining -= 1;
-        }
-        else {
+        } else {
             self.md5_state.update(&self.header_data[0..4]);
             self.md5_state.update(self.shared_secret);
             self.md5_state.update(&self.header_data[4..6]);
             self.md5_state.update(self.md5_buf.iter());
-            self.md5_state.finalize_into_reset((&mut self.md5_buf).into());
+            self.md5_state
+                .finalize_into_reset((&mut self.md5_buf).into());
             self.remaining -= 1;
             self.buf_ptr = 15;
             p = 16;
         }
-        Some(unsafe {*self.md5_buf.get_unchecked(16-p)})
+        Some(unsafe { *self.md5_buf.get_unchecked(16 - p) })
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.remaining as usize, Some(self.remaining as usize))
@@ -122,8 +127,11 @@ impl Iterator for TacacsMd5Pad<'_> {
 /// Run the obfuscation algorithm in place on a packet. The process is symmetric so this handles
 /// obfucation and de-obfuscation. NOTE: The caller should check header.length == packet_body.len()
 pub fn obfuscate_in_place(header: &PacketHeader, shared_secret: &[u8], packet_body: &mut [u8]) {
-    core::iter::zip(packet_body.iter_mut(), TacacsMd5Pad::new(header, shared_secret))
-    .for_each(|(packet_byte, padbyte)|{
+    core::iter::zip(
+        packet_body.iter_mut(),
+        TacacsMd5Pad::new(header, shared_secret),
+    )
+    .for_each(|(packet_byte, padbyte)| {
         *packet_byte ^= padbyte;
     });
 }

@@ -1,4 +1,0 @@
-# Safety
-
-Marked unsafe due to slice-DST wrangling internals, there are no particular requirements for the caller to uphold.
-After more testing, this function may be marked safe. Until then, use at your own risk!

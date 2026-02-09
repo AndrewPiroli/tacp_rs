@@ -10,9 +10,7 @@ My style is to avoid external dependencies when reasonable, I am not afraid of n
 
 Contains the protocol definitions, a zero-copy parser/decoder, and an experimental encoder. `no_std` always, but does require `alloc` and a nightly compiler.
 
-The encoding side of things is new and experimental, so it is behind a feature flag (`dst-construct`) and all methods are marked unsafe.
-
-RFC Compliance Status: **Mostly compliant** - where it counts at least.
+RFC Compliance Status: **Very Good** - All definitions are in place, the treatment of string values is left to the implementer, I may add a helper for this in the final release.
 
 ROADMAP:
 
@@ -23,10 +21,10 @@ ROADMAP:
       - [x] Authentication
       - [x] Authorization
       - [x] Accounting
-    - [ ] Full RFC compliance
+    - [x] Full RFC compliance
   - [ ] Documentation
     - [x] RFC info in comments
-    - [ ] Make doc comments nice
+    - [x] Make doc comments nice
   - [ ] Polish things
     - [ ] Errors (handling, reporting)
     - [x] Don't crash
