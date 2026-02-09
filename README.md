@@ -1,6 +1,6 @@
 # An implementations of the TACACS+ Protocol in Rust.
 
-Current status: **Alpha**
+Current status: **BETA**
 
 Not recommended for production use (yet).
 
@@ -34,6 +34,10 @@ ROADMAP:
     - [ ] Usage of unsafe
     - [ ] Direct fuzzing
     - [x] Use miri
+  - [ ] Testing
+    - [x] Basic testing implementation
+    - [ ] Use or develop some kind of framework to organize testing
+    - [ ] Test against 3rd party systems
 
 ## Testing infrastructure
 
