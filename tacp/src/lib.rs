@@ -28,19 +28,17 @@
 //! ```rust,no_run
 //! use tacp::{PacketHeader, PacketType, AuthenStartPacket};
 //!
-//! # fn example(buffer: &[u8]) -> Result<(), tacp::TacpErr> {
 //! // Parse the 12-byte header
 //! let header = PacketHeader::try_ref_from_bytes(&buffer[..12])?;
+//! let packet_size = header.length.get() as usize;
 //!
 //! // Parse the packet body based on type
 //! if header.ty == PacketType::AUTHEN {
-//!     let packet = AuthenStartPacket::try_ref_from_bytes(&buffer[12..])?;
+//!     let packet = AuthenStartPacket::try_ref_from_bytes(&buffer[12..packet_size+12])?;
 //!     if let Some(user) = packet.get_user() {
 //!         println!("Authenticating user: {:?}", user);
 //!     }
 //! }
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## Constructing a TACACS+ Packet
@@ -48,16 +46,40 @@
 //! ```rust,no_run
 //! use tacp::{AuthenReplyPacket, AuthenReplyStatus, AuthenReplyFlags};
 //!
-//! # fn example() -> Result<(), tacp::TacpErr> {
-//! // Create an authentication reply packet
+//! // The user has full control of allocations
+//!
+//! // Allocate with the Global Allocator
 //! let reply = AuthenReplyPacket::new(
 //!     AuthenReplyStatus::PASS,
 //!     AuthenReplyFlags::empty(),
 //!     b"Login successful",
 //!     &[],
 //! )?;
-//! # Ok(())
-//! # }
+//!
+//! // Allocate using a custom allocator
+//! let arena = bumpalo::Bump::new();
+//! let reply = AuthenReplyPacket::new_in(
+//!     &arena,
+//!     AuthenReplyStatus::PASS,
+//!     AuthenReplyFlags::empty(),
+//!     b"Login successful",
+//!     &[],
+//! )?;
+//!
+//! // ...or in-place initialize one wherever you want.
+//! let stack_buffer = [0u8;32];
+//! let server_message = b"Login successful";
+//! let data = b"";
+//! let size = AuthenReplyPacket::size_for_metadata(message.len()+data.len()).unwrap()
+//! AuthenReplyPacket::initialize(
+//!     &stack_buffer,
+//!     AuthenReplyStatus::PASS,
+//!     AuthenReplyFlags::empty(),
+//!     &message,
+//!     &data,
+//! )?;
+//! // stack_buffer[..size] is now properly initialized
+//! // it can be sent directly or converted to a typed version with `try_ref_from_bytes`
 //! ```
 //!
 //! ## Packet Structure
@@ -65,9 +87,6 @@
 //! All TACACS+ packets share a common structure:
 //! - A 12-byte [`PacketHeader`] containing metadata
 //! - A variable-length body specific to the packet type
-//!
-//! The library provides zero-copy parsing via `try_ref_from_bytes()` and
-//! efficient construction via `new()` or `initialize()` methods.
 //!
 //! # Protocol Overview
 //!
@@ -97,7 +116,7 @@
 //! # Requirements
 //!
 //! - Rust nightly compiler (uses unstable `allocator_api` and `layout_for_ptr` features)
-//! - `no_std` compatible, but requires `alloc` for dynamic packet construction
+//! - `no_std` always, but requires `alloc`
 //!
 //! [RFC 8907]: https://datatracker.ietf.org/doc/html/rfc8907
 //! [RFC 9887]: https://datatracker.ietf.org/doc/html/rfc9887
@@ -117,8 +136,8 @@ use argvalpair::ArgValPairIter;
 
 use bitflags::bitflags;
 pub use zerocopy::byteorder::network_endian::{U16, U32};
-use zerocopy::{ConvertError, KnownLayout, TryCastError};
-pub use zerocopy::{FromBytes, IntoBytes, TryFromBytes};
+use zerocopy::{ConvertError, TryCastError};
+pub use zerocopy::{FromBytes, IntoBytes, TryFromBytes, KnownLayout};
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes, Unaligned};
 
 pub mod argvalpair;
@@ -2329,7 +2348,7 @@ pub enum TacpErr {
     AllocError(&'static str),
     /// Buffer is too small for the operation.
     ///
-    /// When using [`initialize()`] methods, the buffer must be large enough for the entire packet.
+    /// When using `initialize()` methods, the buffer must be large enough for the entire packet.
     BufferSize {
         /// Number of bytes required
         required_size: usize,

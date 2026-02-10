@@ -1,7 +1,7 @@
 //! TACACS+ Argument-Value Pairs
 //!
 //! Authorization and accounting packets contain lists of argument-value pairs
-//! in the format `arg=value` or `arg*value` (where `*` indicates mandatory).
+//! in the format `arg=value` or `arg*value` (where `*` indicates optional).
 //!
 //! TACACS+ values are stringly typed. This module provides parsing and type
 //! inference while following the RFC specification.
@@ -128,7 +128,7 @@ impl core::fmt::Display for Value<'_> {
 /// A TACACS+ argument-value pair.
 ///
 /// Represents a single argument-value pair from an authorization or accounting packet.
-/// The format is `arg=value` (optional) or `arg*value` (mandatory).
+/// The format is `arg=value` (mandatory) or `arg*value` (optional).
 #[derive(Debug, Clone)]
 pub struct ArgValPair<'arg, 'val> {
     /// The argument name.
