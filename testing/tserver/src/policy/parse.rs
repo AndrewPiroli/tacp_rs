@@ -239,32 +239,7 @@ fn parse_acct_policy(policy: &StrictYaml, groupname: &str) -> Result<AcctPolicy,
                     if let Some(filename) = value.as_str() { return Ok(AcctPolicy(AcctTarget::File(filename.into()))); }
                     else { return Err(TacpServerError::ParseError(format!("AcctPolicy for group {groupname} specified file but filename malformed"))); }
                 }
-                if setting.eq_ignore_ascii_case("syslog") {
-                    let mut ip = None;
-                    let mut port = None;
-                    let mut proto = None;
-                    if let Some(syslog_settings) = value.as_hash() {
-                        for (syslog_setting, syslog_val) in syslog_settings {
-                            if let Some(syslog_setting) = syslog_setting.as_str()
-                            && let Some(syslog_val) = syslog_val.as_str()
-                            {
-                                match syslog_setting {
-                                    "port" => { port = syslog_val.parse::<u16>().ok(); },
-                                    "ip" | "host" => { ip = syslog_val.parse::<IpAddr>().ok(); },
-                                    "proto" | "protocol" => { proto = SyslogTransport::try_from(syslog_val).ok(); },
-                                    _ => { error!("Unknown syslog setting: \"{syslog_setting}\" for groupname {groupname}"); }
-                                }
-                            } else { error!("Parse error in syslog settings for group {groupname}."); }
-                        }
-                    } else { error!("Failed to parse syslog settings for group {groupname}"); } //will fall through to no IP case. which is fine.
-                    if let Some(ip) = ip {
-                        return Ok(AcctPolicy(AcctTarget::Syslog((ip, port.unwrap_or(514), proto.unwrap_or(SyslogTransport::UDP)))));
-                    }
-                    else {
-                        error!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}");
-                        return Err(TacpServerError::ParseError(format!("Policy syslog section: finished parsing syslog settings but no target IP was specified. Groupname: {groupname}")))
-                    }
-                } else { error!("Unknown Acct Policy target: \"{setting}\" for group {groupname}") }
+                else { error!("Unknown Acct Policy target: \"{setting}\" for group {groupname}") }
             }
             else {
                 error!("AcctPolicy parse error(group {groupname}), acct target is not a string");

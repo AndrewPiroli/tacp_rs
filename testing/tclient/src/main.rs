@@ -166,7 +166,7 @@ fn main() {
         util::encrypt(&mut recv_body, SupportedEncryption::RfcMd5 { key: args.key.as_bytes(), header });
         match expected_reply {
             NextPacket::AuthenReply => {
-                let recv_parsed = AuthenReplyPacket::try_ref_from_bytes(&recv_body);
+                let recv_parsed = AuthenReplyPacket::try_from_bytes_ref(&recv_body);
                 if let Err(err) = recv_parsed {
                     eprintln!("err {err:?}");
                     util::hexdump(&recv_body);
@@ -175,7 +175,7 @@ fn main() {
                 handle_authen_reply(recv_parsed.unwrap(), &mut expected_reply, &mut stream, &mut seq_no, session_id, args.key.as_bytes());
             },
             NextPacket::AuthorReply => {
-                let recv_parsed = AuthorReplyPacket::try_ref_from_bytes(&recv_body);
+                let recv_parsed = AuthorReplyPacket::try_from_bytes_ref(&recv_body);
                 if let Err(err) = recv_parsed {
                     eprintln!("err {err:?}");
                     util::hexdump(&recv_body);
@@ -213,7 +213,7 @@ fn main() {
                 break;
             },
             NextPacket::AcctReply => {
-                let recv_parsed = AcctReplyPacket::try_ref_from_bytes(&recv_body);
+                let recv_parsed = AcctReplyPacket::try_from_bytes_ref(&recv_body);
                 if let Err(err) = recv_parsed {
                     eprintln!("err {err:?}");
                     util::hexdump(&recv_body);

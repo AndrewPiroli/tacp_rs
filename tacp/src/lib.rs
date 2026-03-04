@@ -191,6 +191,115 @@ macro_rules! mem_cpy {
     };
 }
 
+mod sealed {
+    pub trait TacpFromBytes: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
+    pub trait TacpTryFromBytes: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable {}
+    pub trait TacpIntoBytes: zerocopy::IntoBytes+zerocopy::Immutable {}
+    pub trait TacpKnownLayout: zerocopy::KnownLayout<PointerMetadata = usize> {}
+}
+
+/// Provides methods for sized data strutures that can be infallibly casted from plain old memory.
+/// Analogus to zerocopy::FromBytes
+pub trait FromMemory: sealed::TacpFromBytes {
+    /// Cast to Self from memory
+    ///
+    /// # Errors
+    ///
+    /// Returns Err in the case the slice is the incorrect size for Self
+    fn from_bytes(mem: &[u8]) -> Result<&Self, TacpErr> {
+        match <Self as zerocopy::FromBytes>::ref_from_bytes(mem) {
+            Ok(ret) => Ok(ret),
+            Err(ce) => if let zerocopy::ConvertError::Size(se) = ce {
+                Err(TacpErr::from(se))
+            }
+            else {
+                unreachable!()
+            }
+        }
+    }
+}
+impl<T> sealed::TacpFromBytes for T where T: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
+impl<T> FromMemory for T where T: sealed::TacpFromBytes {}
+
+/// Provides methods for data strutures that can be casted from plain old memory.
+/// Analogus to zerocopy::TryFromBytes
+pub trait TryFromMemory: sealed::TacpTryFromBytes {
+    /// Attempt to cast to Self from memory, cast is validated for the type.
+    ///
+    /// # Errors
+    ///
+    /// Returns Err in the case the slice is the incorrect size or contains invalid bit patterns for Self
+    fn try_from_bytes_ref(mem: &[u8]) -> Result<&Self, TacpErr> {
+        match <Self as zerocopy::TryFromBytes>::try_ref_from_bytes(mem) {
+            Ok(ret) => Ok(ret),
+            Err(ce) => Err(TacpErr::from(ce))
+        }
+    }
+    /// Makes a copy of Self from memory, cast is validated for the type.
+    ///
+    /// # Errors
+    ///
+    /// Returns Err in the case the slice is the incorrect size or contains invalid bit patterns for Self
+    fn try_from_bytes_copy(mem: &[u8]) -> Result<Self, TacpErr> where Self: Sized {
+        match <Self as zerocopy::TryFromBytes>::try_read_from_bytes(mem) {
+            Ok(ret) => Ok(ret),
+            Err(ce) => Err(match ce {
+                ConvertError::Alignment(_) => unreachable!(),
+                ConvertError::Size(se) => TacpErr::from(se),
+                ConvertError::Validity(ve) => TacpErr::from(ve),
+            })
+        }
+    }
+}
+impl<T> sealed::TacpTryFromBytes for T where T: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable+?Sized {}
+impl<T> TryFromMemory for T where T: sealed::TacpTryFromBytes+?Sized {}
+
+/// Provides methods to view or convert data structures to byte slices
+/// Analogus to zerocopy::IntoBytes
+///
+/// Sorry for the silly names, I'm trying to avoid colliding with zerocopy's traits
+pub trait IntoMemory: sealed::TacpIntoBytes {
+    /// Returns Self as bytes
+    fn bytes(&self) -> &[u8] {
+        <Self as zerocopy::IntoBytes>::as_bytes(self)
+    }
+    /// Returns Self as mutable bytes
+    fn mut_bytes(&mut self) -> &mut [u8] where Self: FromMemory {
+        <Self as zerocopy::IntoBytes>::as_mut_bytes(self)
+    }
+    /// Copy the bytes to a destination.
+    ///
+    /// # Errors
+    /// Destination must be of the same size as Self.
+    fn copy_to(&self, dst: &mut [u8]) -> Result<(), TacpErr> {
+        let tmp = <Self as zerocopy::IntoBytes>::as_bytes(self);
+        if tmp.len() == dst.len() {
+            dst.copy_from_slice(tmp);
+            Ok(())
+        }
+        else {
+            Err(TacpErr::BufferSize { required_size: tmp.len(), given_size: dst.len() })
+        }
+    }
+}
+impl<T> sealed::TacpIntoBytes for T where T: zerocopy::IntoBytes+zerocopy::Immutable {}
+impl<T> IntoMemory for T where T: sealed::TacpIntoBytes {}
+
+/// Calculate the would be size of a DST given the sum of it's variable length components
+pub trait CalculateSize: sealed::TacpKnownLayout {
+    /// Calculate the would be size given the sum of it's variable length components.
+    /// See all slice based arguments to `Self::initialize`
+    ///
+    /// # Errors
+    ///
+    /// If the calculated size would exceed usize, an error will be returned.
+    fn calc_size(component_sizes: usize) -> Result<usize, TacpErr> {
+         <Self as zerocopy::KnownLayout>::size_for_metadata(component_sizes as Self::PointerMetadata).ok_or(TacpErr::ObjectOverflow)
+    }
+}
+impl<T> sealed::TacpKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize> {}
+impl<T> CalculateSize for T where T: sealed::TacpKnownLayout {}
+
 // Original protocol specification RFC 8907 https://datatracker.ietf.org/doc/html/rfc8907
 // * Explains data structures, protocol operation, and deployment guidelines.
 // Updated by RFC 9887 https://datatracker.ietf.org/doc/html/rfc9887
@@ -2356,6 +2465,7 @@ pub enum TacpErr {
     /// Buffer is too small for the operation.
     ///
     /// When using `initialize()` methods, the buffer must be large enough for the entire packet.
+    /// When using conversion traits, both sizes must match exactly.
     BufferSize {
         /// Number of bytes required
         required_size: usize,
@@ -2386,6 +2496,8 @@ pub enum TacpErr {
         /// Actual length of the argument
         arg_len: usize,
     },
+    /// The calculated size would overflow a usize.
+    ObjectOverflow,
 }
 
 impl core::fmt::Display for TacpErr {
@@ -2403,6 +2515,7 @@ impl core::fmt::Display for TacpErr {
                 write!(f, "component {component_name} too large to be encoded into this packet. {component_size} > {max_size}"),
             Self::OversizedArgument { arg_index, arg_len } =>
                 write!(f, "argument #{arg_index} with length {arg_len} too large (>255)"),
+            Self::ObjectOverflow => write!(f, "calculated size would overflow usize!"),
         }
     }
 }
@@ -2419,6 +2532,12 @@ impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
 impl<S, D> From<zerocopy::error::SizeError<S, D>> for TacpErr {
     fn from(_value: zerocopy::error::SizeError<S, D>) -> Self {
         Self::ParseError("ZC size error")
+    }
+}
+
+impl<S, D: zerocopy::TryFromBytes> From<zerocopy::error::ValidityError<S, D>> for TacpErr {
+    fn from(_: zerocopy::error::ValidityError<S, D>) -> Self {
+        Self::ParseError("ZC failed to validate")
     }
 }
 

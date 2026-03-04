@@ -11,7 +11,6 @@ use smallvec::*;
 use fnv::FnvHashMap;
 use std::ops::Deref;
 use tracing::{error, info, instrument, debug};
-use zerocopy::byteorder::network_endian::U32;
 
 mod policy;
 mod testsupport;
@@ -176,7 +175,7 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
                 break;
             }
         }
-        let parsed_header = match PacketHeader::try_ref_from_bytes(&header) {
+        let parsed_header = match PacketHeader::try_from_bytes_ref(&header) {
             Ok(ph) => ph,
             Err(e) => {
                 error!(err = ?e, "Failed to parse packet header");
@@ -366,11 +365,10 @@ async fn handle_conn(mut stream: TcpStream, addr: std::net::SocketAddr) {
 
 #[instrument]
 async fn send_reply(stream: &mut TcpStream, header: PacketHeader, obfuscated_body: &[u8]) -> tokio::io::Result<()> {
-    use zerocopy::*;
     assert!(header.seq_no.is_multiple_of(2)); // Servers MUST send even sequence numbers. If this trips, we're off somewhere.
     let mut reply = Vec::with_capacity(header.length.get() as usize);
     reply.resize(12, 0);
-    header.write_to_prefix(&mut reply).unwrap();
+    header.copy_to(&mut reply).unwrap();
     reply.extend_from_slice(obfuscated_body);
     stream.write_all(&reply).await?;
     Ok(())
@@ -382,7 +380,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
     match cstate.authen_state {
         AuthenState::None => { // We have nothing so far, so this is a AUTHEN START packet
             info!("Authen START");
-            let pkt = AuthenStartPacket::try_ref_from_bytes(&packet);
+            let pkt = AuthenStartPacket::try_from_bytes_ref(&packet);
             if let Err(err) = pkt {
                 error!("Packet Parse Failure");
                 return SrvPacket::AuthenGenericError(Some(err.to_string().into()));
@@ -456,8 +454,7 @@ async fn handle_authen_packet(expected_length: usize, packet: SmallVec<PacketBuf
 
 #[instrument]
 fn parse_authen_continue(data: &[u8], expected_length: usize) -> core::result::Result<&AuthenContinuePacket, TacpServerError> {
-
-    let pkt = AuthenContinuePacket::try_ref_from_bytes(data)?;
+    let pkt = AuthenContinuePacket::try_from_bytes_ref(data).unwrap();
     if pkt.len() != expected_length {
         return Err(TacpServerError::ParseError(format!("Parsed AuthenContinuePacket length {}. Header length: {expected_length}", pkt.len())));
     }
@@ -537,7 +534,7 @@ async fn authen_start_pap(pkt: &AuthenStartPacket, cstate: &Client) -> SrvPacket
 
 #[instrument]
 async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
-    let pkt = AuthorRequestPacket::try_ref_from_bytes(&packet);
+    let pkt = AuthorRequestPacket::try_from_bytes_ref(&packet);
     if pkt.is_err() {
         return SrvPacket::AuthorGenericError(Some("Failed to parse".into()));
     }
@@ -593,8 +590,7 @@ async fn handle_author_packet(expected_length: usize, packet: SmallVec<PacketBuf
 
 #[instrument]
 async fn handle_acct_packet(expected_length: usize, packet: SmallVec<PacketBuf>, cstate: &mut Client) -> SrvPacket {
-    let pkt = AcctRequestPacket::try_ref_from_bytes(&packet);
-    // let pkt = AcctRequestPacket::try_from(packet.deref());
+    let pkt = AcctRequestPacket::try_from_bytes_ref(&packet);
     if pkt.is_err() {
         return SrvPacket::AcctGenericError(Some("Failed to parse".into()));
     }
@@ -661,18 +657,6 @@ impl core::fmt::Display for TacpServerError {
                 f.write_str("Parsing error: ")?;
                 f.write_str(desc)
             },
-        }
-    }
-}
-
-use zerocopy::{TryCastError, ConvertError};
-
-impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpServerError {
-    fn from(value: TryCastError<S, D>) -> Self {
-        match value {
-            ConvertError::Alignment(_) => Self::ParseError("Alignment error: this is should never happen".to_string()),
-            ConvertError::Size(_) => Self::ParseError("ZC size error".to_string()),
-            ConvertError::Validity(_) => Self::ParseError("ZC Failed to validate".to_string()),
         }
     }
 }

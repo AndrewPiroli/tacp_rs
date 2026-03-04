@@ -31,7 +31,7 @@ pub fn encrypt(unencrypted_body: &mut [u8], method: SupportedEncryption) {
 
 pub fn alloc_pkt(header: PacketHeader, pre_encrypted_body: &[u8]) -> Vec<u8> {
     let mut ret = Vec::with_capacity(12 + pre_encrypted_body.len());
-    ret.extend_from_slice(header.as_bytes());
+    ret.extend_from_slice(header.bytes());
     ret.extend_from_slice(pre_encrypted_body);
     ret
 }
@@ -45,7 +45,7 @@ pub fn recv_packet(s: &mut TcpStream) -> anyhow::Result<(PacketHeader, Box<[u8]>
     s.read_exact(&mut header_buf)?;
     // lifetimes being weird, FIXME later
     let header: PacketHeader;
-    if let std::result::Result::Ok(parsed_header) = PacketHeader::try_read_from_bytes(&header_buf) {
+    if let std::result::Result::Ok(parsed_header) = PacketHeader::try_from_bytes_copy(&header_buf) {
         header = parsed_header;
     }
     else {

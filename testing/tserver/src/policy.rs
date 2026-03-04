@@ -91,32 +91,9 @@ pub struct AuthorPolicy {
     list: Vec<(ACLActions, Regex)>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SyslogTransport {
-    TCP,
-    UDP,
-}
-
-impl TryFrom<&str> for SyslogTransport {
-    type Error = TacpServerError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value.eq_ignore_ascii_case("tcp") {
-            return Ok(Self::TCP);
-        }
-        else if value.eq_ignore_ascii_case("udp") {
-            return Ok(Self::UDP);
-        }
-        else {
-            return Err(TacpServerError::ParseError(format!("SyslogTransport must be tcp or udp. Got: {value}")))
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 enum AcctTarget {
     File(PathBuf),
-    Syslog((IpAddr, u16, SyslogTransport)),
 }
 
 #[derive(Debug, Clone)]

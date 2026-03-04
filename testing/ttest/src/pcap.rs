@@ -25,7 +25,7 @@ pub fn check_pcap() -> bool {
 
 fn parse_tacacs_pkt(data: &[u8], key: &[u8]) -> bool {
     if data.len() < 12 { return false; }
-    if let Ok(header) = PacketHeader::try_ref_from_bytes(&data[..12]) {
+    if let Ok(header) = PacketHeader::try_from_bytes_ref(&data[..12]) {
         let mut body = Vec::from(&data[12..]).into_boxed_slice();
         tacp::obfuscation::obfuscate_in_place(header, key, &mut body);
         return match header.ty {
@@ -38,17 +38,17 @@ fn parse_tacacs_pkt(data: &[u8], key: &[u8]) -> bool {
 }
 
 fn try_parse_authen(data: & [u8]) -> bool {
-    AuthenStartPacket::try_ref_from_bytes(data).is_ok() ||
-    AuthenReplyPacket::try_ref_from_bytes(data).is_ok() ||
-    AuthenContinuePacket::try_ref_from_bytes(data).is_ok()
+    AuthenStartPacket::try_from_bytes_ref(data).is_ok() ||
+    AuthenReplyPacket::try_from_bytes_ref(data).is_ok() ||
+    AuthenContinuePacket::try_from_bytes_ref(data).is_ok()
 }
 
 fn try_parse_author(data: &[u8]) -> bool {
-    AuthorRequestPacket::try_ref_from_bytes(data).is_ok() ||
-    AuthorReplyPacket::try_ref_from_bytes(data).is_ok()
+    AuthorRequestPacket::try_from_bytes_ref(data).is_ok() ||
+    AuthorReplyPacket::try_from_bytes_ref(data).is_ok()
 }
 
 fn try_parse_acct(data: &[u8]) -> bool {
-    AcctRequestPacket::try_ref_from_bytes(data).is_ok() ||
-    AcctReplyPacket::try_ref_from_bytes(data).is_ok()
+    AcctRequestPacket::try_from_bytes_ref(data).is_ok() ||
+    AcctReplyPacket::try_from_bytes_ref(data).is_ok()
 }
