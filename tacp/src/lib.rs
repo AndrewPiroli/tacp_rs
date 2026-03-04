@@ -21,6 +21,11 @@
 //!   that do not support TLS. Modern deployments should use TLS and set the
 //!   [`UNENCRYPTED`](Flags::UNENCRYPTED) flag.
 //!
+//! - **`expose_zerocopy`** (non-default) - Controls re-export of zerocopy traits
+//!
+//!   Enable this feature to directly use zerocopy traits and error types on packet data structures.
+//!   Without this, zerocopy does not appear in this crate's public API with the exception of the byteorder re-exports for length fields.
+//!
 //! # Quick Start
 //!
 //! ## Parsing a TACACS+ Packet
@@ -136,8 +141,10 @@ use argvalpair::ArgValPairIter;
 
 use bitflags::bitflags;
 pub use zerocopy::byteorder::network_endian::{U16, U32};
-use zerocopy::{ConvertError, TryCastError};
-pub use zerocopy::{FromBytes, IntoBytes, TryFromBytes, KnownLayout};
+#[cfg(not(feature = "expose_zerocopy"))]
+use zerocopy::{ConvertError, TryCastError, IntoBytes, TryFromBytes, KnownLayout};
+#[cfg(feature = "expose_zerocopy")]
+pub use zerocopy::{ConvertError, TryCastError, FromBytes, IntoBytes, TryFromBytes, KnownLayout};
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes, Unaligned};
 
 pub mod argvalpair;

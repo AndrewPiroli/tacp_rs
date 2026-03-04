@@ -14,6 +14,7 @@ zerocopy-derive = { version = "~0.8.27", default-features = false }
 [features]
 default = ["obfuscation"]
 obfuscation = ["dep:md5"]
+expose_zerocopy = []
 
 [lints.clippy]
 len_without_is_empty = "allow"

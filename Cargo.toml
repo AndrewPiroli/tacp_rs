@@ -1,6 +1,6 @@
 [workspace]
 members = ["tacp", "testing/tserver", "testing/tclient", "testing/ttest"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 authors = ["Andrew Piroli"]
