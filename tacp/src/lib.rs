@@ -192,7 +192,7 @@ macro_rules! mem_cpy {
 }
 
 mod sealed {
-    pub trait TacpPrivateFromBytes: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
+    pub trait TacpPrivateFromBytes: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable {}
     pub trait TacpPrivateTryFromBytes: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable {}
     pub trait TacpPrivateIntoBytes: zerocopy::IntoBytes+zerocopy::Immutable {}
     pub trait TacpPrivateKnownLayout: zerocopy::KnownLayout<PointerMetadata = usize> {}
@@ -218,8 +218,8 @@ pub trait FromMemory: sealed::TacpPrivateFromBytes {
         }
     }
 }
-impl<T> sealed::TacpPrivateFromBytes for T where T: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
-impl<T> FromMemory for T where T: sealed::TacpPrivateFromBytes {}
+impl<T> sealed::TacpPrivateFromBytes for T where T: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+?Sized {}
+impl<T> FromMemory for T where T: sealed::TacpPrivateFromBytes+?Sized {}
 
 /// Provides methods for data strutures that can be casted from plain old memory.
 /// Analogus to zerocopy::TryFromBytes
@@ -256,8 +256,6 @@ impl<T> TryFromMemory for T where T: sealed::TacpPrivateTryFromBytes+?Sized {}
 
 /// Provides methods to view or convert data structures to byte slices
 /// Analogus to zerocopy::IntoBytes
-///
-/// Sorry for the silly names, I'm trying to avoid colliding with zerocopy's traits
 pub trait IntoMemory: sealed::TacpPrivateIntoBytes {
     /// Returns Self as bytes
     fn bytes(&self) -> &[u8] {
@@ -282,8 +280,8 @@ pub trait IntoMemory: sealed::TacpPrivateIntoBytes {
         }
     }
 }
-impl<T> sealed::TacpPrivateIntoBytes for T where T: zerocopy::IntoBytes+zerocopy::Immutable {}
-impl<T> IntoMemory for T where T: sealed::TacpPrivateIntoBytes {}
+impl<T> sealed::TacpPrivateIntoBytes for T where T: zerocopy::IntoBytes+zerocopy::Immutable+?Sized {}
+impl<T> IntoMemory for T where T: sealed::TacpPrivateIntoBytes+?Sized {}
 
 /// Calculate the would be size of a DST given the sum of it's variable length components
 pub trait CalculateSize: sealed::TacpPrivateKnownLayout {
@@ -297,8 +295,8 @@ pub trait CalculateSize: sealed::TacpPrivateKnownLayout {
          <Self as zerocopy::KnownLayout>::size_for_metadata(component_sizes as Self::PointerMetadata).ok_or(TacpErr::ObjectOverflow)
     }
 }
-impl<T> sealed::TacpPrivateKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize> {}
-impl<T> CalculateSize for T where T: sealed::TacpPrivateKnownLayout {}
+impl<T> sealed::TacpPrivateKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize>+?Sized {}
+impl<T> CalculateSize for T where T: sealed::TacpPrivateKnownLayout+?Sized {}
 
 // Original protocol specification RFC 8907 https://datatracker.ietf.org/doc/html/rfc8907
 // * Explains data structures, protocol operation, and deployment guidelines.
@@ -2522,26 +2520,26 @@ impl core::fmt::Display for TacpErr {
 
 impl core::error::Error for TacpErr {}
 
-impl<S, D> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
+impl<S, D: ?Sized> From<zerocopy::error::AlignmentError<S, D>> for TacpErr {
     fn from(_: zerocopy::error::AlignmentError<S, D>) -> Self {
         // No really, we went out of our way to make things unaligned...
         Self::ParseError("Alignment error: this is should never happen")
     }
 }
 
-impl<S, D> From<zerocopy::error::SizeError<S, D>> for TacpErr {
+impl<S, D: ?Sized> From<zerocopy::error::SizeError<S, D>> for TacpErr {
     fn from(_value: zerocopy::error::SizeError<S, D>) -> Self {
         Self::ParseError("ZC size error")
     }
 }
 
-impl<S, D: zerocopy::TryFromBytes> From<zerocopy::error::ValidityError<S, D>> for TacpErr {
+impl<S, D: zerocopy::TryFromBytes + ?Sized> From<zerocopy::error::ValidityError<S, D>> for TacpErr {
     fn from(_: zerocopy::error::ValidityError<S, D>) -> Self {
         Self::ParseError("ZC failed to validate")
     }
 }
 
-impl<S, D: ?Sized + TryFromBytes> From<TryCastError<S, D>> for TacpErr {
+impl<S, D: TryFromBytes + ?Sized> From<TryCastError<S, D>> for TacpErr {
     fn from(value: TryCastError<S, D>) -> Self {
         match value {
             ConvertError::Alignment(_) => {
