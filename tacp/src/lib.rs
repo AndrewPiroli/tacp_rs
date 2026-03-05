@@ -34,12 +34,12 @@
 //! use tacp::{PacketHeader, PacketType, AuthenStartPacket};
 //!
 //! // Parse the 12-byte header
-//! let header = PacketHeader::try_ref_from_bytes(&buffer[..12])?;
+//! let header = PacketHeader::try_from_bytes_ref(&buffer[..12])?;
 //! let packet_size = header.length.get() as usize;
 //!
 //! // Parse the packet body based on type
 //! if header.ty == PacketType::AUTHEN {
-//!     let packet = AuthenStartPacket::try_ref_from_bytes(&buffer[12..packet_size+12])?;
+//!     let packet = AuthenStartPacket::try_from_bytes_ref(&buffer[12..packet_size+12])?;
 //!     if let Some(user) = packet.get_user() {
 //!         println!("Authenticating user: {:?}", user);
 //!     }
@@ -75,7 +75,7 @@
 //! let stack_buffer = [0u8;32];
 //! let server_message = b"Login successful";
 //! let data = b"";
-//! let size = AuthenReplyPacket::size_for_metadata(message.len()+data.len()).unwrap()
+//! let size = AuthenReplyPacket::calc_size(message.len()+data.len()).unwrap()
 //! AuthenReplyPacket::initialize(
 //!     &stack_buffer,
 //!     AuthenReplyStatus::PASS,
@@ -84,7 +84,7 @@
 //!     &data,
 //! )?;
 //! // stack_buffer[..size] is now properly initialized
-//! // it can be sent directly or converted to a typed version with `try_ref_from_bytes`
+//! // it can be sent directly or converted to a typed version with `try_from_bytes_ref`
 //! ```
 //!
 //! ## Packet Structure
@@ -192,15 +192,15 @@ macro_rules! mem_cpy {
 }
 
 mod sealed {
-    pub trait TacpFromBytes: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
-    pub trait TacpTryFromBytes: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable {}
-    pub trait TacpIntoBytes: zerocopy::IntoBytes+zerocopy::Immutable {}
-    pub trait TacpKnownLayout: zerocopy::KnownLayout<PointerMetadata = usize> {}
+    pub trait TacpPrivateFromBytes: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
+    pub trait TacpPrivateTryFromBytes: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable {}
+    pub trait TacpPrivateIntoBytes: zerocopy::IntoBytes+zerocopy::Immutable {}
+    pub trait TacpPrivateKnownLayout: zerocopy::KnownLayout<PointerMetadata = usize> {}
 }
 
 /// Provides methods for sized data strutures that can be infallibly casted from plain old memory.
 /// Analogus to zerocopy::FromBytes
-pub trait FromMemory: sealed::TacpFromBytes {
+pub trait FromMemory: sealed::TacpPrivateFromBytes {
     /// Cast to Self from memory
     ///
     /// # Errors
@@ -218,12 +218,12 @@ pub trait FromMemory: sealed::TacpFromBytes {
         }
     }
 }
-impl<T> sealed::TacpFromBytes for T where T: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
-impl<T> FromMemory for T where T: sealed::TacpFromBytes {}
+impl<T> sealed::TacpPrivateFromBytes for T where T: zerocopy::FromBytes+zerocopy::KnownLayout+zerocopy::Immutable+Sized {}
+impl<T> FromMemory for T where T: sealed::TacpPrivateFromBytes {}
 
 /// Provides methods for data strutures that can be casted from plain old memory.
 /// Analogus to zerocopy::TryFromBytes
-pub trait TryFromMemory: sealed::TacpTryFromBytes {
+pub trait TryFromMemory: sealed::TacpPrivateTryFromBytes {
     /// Attempt to cast to Self from memory, cast is validated for the type.
     ///
     /// # Errors
@@ -251,14 +251,14 @@ pub trait TryFromMemory: sealed::TacpTryFromBytes {
         }
     }
 }
-impl<T> sealed::TacpTryFromBytes for T where T: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable+?Sized {}
-impl<T> TryFromMemory for T where T: sealed::TacpTryFromBytes+?Sized {}
+impl<T> sealed::TacpPrivateTryFromBytes for T where T: zerocopy::TryFromBytes+zerocopy::KnownLayout+zerocopy::Immutable+?Sized {}
+impl<T> TryFromMemory for T where T: sealed::TacpPrivateTryFromBytes+?Sized {}
 
 /// Provides methods to view or convert data structures to byte slices
 /// Analogus to zerocopy::IntoBytes
 ///
 /// Sorry for the silly names, I'm trying to avoid colliding with zerocopy's traits
-pub trait IntoMemory: sealed::TacpIntoBytes {
+pub trait IntoMemory: sealed::TacpPrivateIntoBytes {
     /// Returns Self as bytes
     fn bytes(&self) -> &[u8] {
         <Self as zerocopy::IntoBytes>::as_bytes(self)
@@ -282,11 +282,11 @@ pub trait IntoMemory: sealed::TacpIntoBytes {
         }
     }
 }
-impl<T> sealed::TacpIntoBytes for T where T: zerocopy::IntoBytes+zerocopy::Immutable {}
-impl<T> IntoMemory for T where T: sealed::TacpIntoBytes {}
+impl<T> sealed::TacpPrivateIntoBytes for T where T: zerocopy::IntoBytes+zerocopy::Immutable {}
+impl<T> IntoMemory for T where T: sealed::TacpPrivateIntoBytes {}
 
 /// Calculate the would be size of a DST given the sum of it's variable length components
-pub trait CalculateSize: sealed::TacpKnownLayout {
+pub trait CalculateSize: sealed::TacpPrivateKnownLayout {
     /// Calculate the would be size given the sum of it's variable length components.
     /// See all slice based arguments to `Self::initialize`
     ///
@@ -297,8 +297,8 @@ pub trait CalculateSize: sealed::TacpKnownLayout {
          <Self as zerocopy::KnownLayout>::size_for_metadata(component_sizes as Self::PointerMetadata).ok_or(TacpErr::ObjectOverflow)
     }
 }
-impl<T> sealed::TacpKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize> {}
-impl<T> CalculateSize for T where T: sealed::TacpKnownLayout {}
+impl<T> sealed::TacpPrivateKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize> {}
+impl<T> CalculateSize for T where T: sealed::TacpPrivateKnownLayout {}
 
 // Original protocol specification RFC 8907 https://datatracker.ietf.org/doc/html/rfc8907
 // * Explains data structures, protocol operation, and deployment guidelines.
