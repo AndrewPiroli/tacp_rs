@@ -294,6 +294,12 @@ pub trait CalculateSize: sealed::TacpPrivateKnownLayout {
     fn calc_size(component_sizes: usize) -> Result<usize, TacpErr> {
          <Self as zerocopy::KnownLayout>::size_for_metadata(component_sizes as Self::PointerMetadata).ok_or(TacpErr::ObjectOverflow)
     }
+    /// Get the size of the fixed portion of packet
+    fn base_size() -> usize {
+        // SAFETY: Only returns Err if the size would exceed the limits of usize.
+        // we don't use anything quite that large and this trait is sealed
+        unsafe { Self::calc_size(0).unwrap_unchecked() }
+    }
 }
 impl<T> sealed::TacpPrivateKnownLayout for T where T: zerocopy::KnownLayout<PointerMetadata = usize>+?Sized {}
 impl<T> CalculateSize for T where T: sealed::TacpPrivateKnownLayout+?Sized {}
@@ -749,7 +755,7 @@ impl AuthenStartPacket {
             mem[6] = rem_addr.len() as u8;
             mem[7] = data.len() as u8;
         }
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr, data);
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1009,7 +1015,7 @@ impl AuthenReplyPacket {
         mem[3] = serv_msg_bytes[1];
         mem[4] = data_len_bytes[0];
         mem[5] = data_len_bytes[1];
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, serv_msg, data);
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1208,7 +1214,7 @@ impl AuthenContinuePacket {
         mem[2] = data_len_bytes[0];
         mem[3] = data_len_bytes[1];
         mem[4] = flags.0;
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, user_msg, data);
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
@@ -1522,7 +1528,7 @@ impl AuthorRequestPacket {
             mem[6] = rem_addr.len() as u8;
             mem[7] = args.len() as u8;
         }
-        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let fixed_part = Self::base_size();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
@@ -1804,7 +1810,7 @@ impl AuthorReplyPacket {
             mem[4] = data_len_bytes[0];
             mem[5] = data_len_bytes[1];
         }
-        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let fixed_part = Self::base_size();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, server_msg, data);
         for (arg_idx, arg) in args.iter().enumerate() {
@@ -2108,7 +2114,7 @@ impl AcctRequestPacket {
             mem[7] = rem_addr.len() as u8;
             mem[9] = args.len() as u8;
         }
-        let fixed_part = Self::size_for_metadata(0usize).unwrap();
+        let fixed_part = Self::base_size();
         let mut varidata_ptr = fixed_part + args.len();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr);
         for (arg_idx, arg) in args.iter().enumerate() {
@@ -2363,7 +2369,7 @@ impl AcctReplyPacket {
         mem[2] = data_len_bytes[0];
         mem[3] = data_len_bytes[1];
         mem[4] = status as u8;
-        let mut varidata_ptr = Self::size_for_metadata(0usize).unwrap();
+        let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, server_msg, data);
         debug_assert!(varidata_ptr == required_mem);
         Ok(())
