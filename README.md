@@ -6,6 +6,8 @@ Not recommended for production use (yet).
 
 My style is to avoid external dependencies when reasonable, I am not afraid of nightly features or using unsafe.
 
+See my AI policy at: [AGENTS.md](AGENTS.md)
+
 ## Main crate: tacp
 
 Contains the protocol definitions, a zero-copy parser/decoder, and an experimental encoder. `no_std` always, but does require `alloc` and a nightly compiler.
