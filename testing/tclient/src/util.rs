@@ -5,7 +5,7 @@ use tacp::obfuscation::obfuscate_in_place;
 use rand::prelude::*;
 use std::sync::{LazyLock, RwLock};
 use anyhow::*;
-static RNG: LazyLock<RwLock<StdRng>> = LazyLock::new(||RwLock::new(StdRng::from_os_rng()));
+static RNG: LazyLock<RwLock<StdRng>> = LazyLock::new(||RwLock::new(rand::make_rng()));
 const MAXPKTLEN: usize = 2_usize.pow(22);
 
 #[non_exhaustive]

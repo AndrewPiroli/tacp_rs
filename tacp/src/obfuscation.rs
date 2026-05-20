@@ -57,14 +57,14 @@
 //! Commonly, such failures are seen when the keys are mismatched between the client and the
 //! TACACS+ server.
 use crate::PacketHeader;
-use md5::{digest::core_api::CoreWrapper, Digest, Md5, Md5Core};
+use md5::{Digest, Md5};
 
 /// Iterator that generates the pseudo random PAD for obfuscation of TACACS+ packets
 pub struct TacacsMd5Pad<'a> {
     shared_secret: &'a [u8],
     header_data: [u8; 6], // idx 0-3 session id; idx 4 version, idx 5 sequence no
     remaining: u32,
-    md5_state: CoreWrapper<Md5Core>,
+    md5_state: Md5,
     md5_buf: [u8; 16],
     buf_ptr: u8,
 }
