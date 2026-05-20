@@ -12,9 +12,9 @@ pub fn check_pcap() -> bool {
         let mut reader = PcapReader::new(cur).unwrap();
         while let Some(pkt) = reader.next_packet() {
             if let Ok(pkt) = pkt {
-                let srcprt = u16::from_be_bytes([pkt.data[34], pkt.data[35]]);
-                let dstprt = u16::from_be_bytes([pkt.data[36], pkt.data[37]]);
-                if (srcprt == 49 || dstprt == 49) && pkt.data.len() > 60 && !parse_tacacs_pkt(&pkt.data[54..], tacacs_key) {
+                let srcprt = u16::from_be_bytes([pkt.data()[34], pkt.data()[35]]);
+                let dstprt = u16::from_be_bytes([pkt.data()[36], pkt.data()[37]]);
+                if (srcprt == 49 || dstprt == 49) && pkt.data().len() > 60 && !parse_tacacs_pkt(&pkt.data()[54..], tacacs_key) {
                     return false;
                 }
             }
