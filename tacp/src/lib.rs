@@ -684,7 +684,7 @@ impl AuthenStartPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -757,7 +757,7 @@ impl AuthenStartPacket {
         }
         let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, user, port, rem_addr, data);
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     /// Creates a new authentication START packet with a custom allocator.
@@ -967,7 +967,7 @@ impl AuthenReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -1017,7 +1017,7 @@ impl AuthenReplyPacket {
         mem[5] = data_len_bytes[1];
         let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, serv_msg, data);
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     ///
@@ -1168,7 +1168,7 @@ impl AuthenContinuePacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -1216,7 +1216,7 @@ impl AuthenContinuePacket {
         mem[4] = flags.0;
         let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, user_msg, data);
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     ///
@@ -1466,7 +1466,7 @@ impl AuthorRequestPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -1538,7 +1538,7 @@ impl AuthorRequestPacket {
             mem[varidata_ptr..(varidata_ptr + arg_len as usize)].copy_from_slice(arg);
             varidata_ptr += arg_len as usize;
         }
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     ///
@@ -1751,7 +1751,7 @@ impl AuthorReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -1820,7 +1820,7 @@ impl AuthorReplyPacket {
             mem[varidata_ptr..(varidata_ptr + arg_len as usize)].copy_from_slice(arg);
             varidata_ptr += arg_len as usize;
         }
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     /// In-place initializer. If this returns Ok(()), you may perform a conversion to Self via TryFromBytes::try_mut_from_bytes
@@ -2050,7 +2050,7 @@ impl AcctRequestPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
@@ -2124,7 +2124,7 @@ impl AcctRequestPacket {
             mem[varidata_ptr..(varidata_ptr + arg_len as usize)].copy_from_slice(arg);
             varidata_ptr += arg_len as usize;
         }
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     ///
@@ -2371,7 +2371,7 @@ impl AcctReplyPacket {
         mem[4] = status as u8;
         let mut varidata_ptr = Self::base_size();
         mem_cpy!(mem, varidata_ptr, server_msg, data);
-        debug_assert!(varidata_ptr == required_mem);
+        debug_assert_eq!(varidata_ptr, required_mem);
         Ok(())
     }
     ///
@@ -2434,7 +2434,7 @@ impl AcctReplyPacket {
         let real_len = s.len();
         let (ptr, allocator) = Box::into_raw_with_allocator(s);
         unsafe {
-            debug_assert!(Layout::for_value_raw(ptr) == Layout::array::<u8>(real_len).unwrap());
+            debug_assert_eq!(Layout::for_value_raw(ptr), Layout::array::<u8>(real_len).unwrap());
         }
         unsafe {
             Box::from_raw_in(
