@@ -1,30 +1,71 @@
-use crate::TEST_MODE;
+use crate::TestConfig;
 
-pub fn getpolicy_blocking(url: &str) -> String {
-    reqwest::blocking::get(url).unwrap().text().unwrap()
+#[derive(serde::Serialize)]
+enum Who {
+    Server,
 }
-pub async fn report(ty: tacp::PacketType, success: bool, user: &str, other: &str) {
-    let addr = TEST_MODE.get();
-    if addr.is_none() {
-        return;
-    }
-    let addr = format!("http://{}/report", addr.unwrap());
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(serde::Serialize)]
+enum AAA {
+    Authen,
+    Author,
+    Acct,
+}
+
+#[derive(serde::Serialize)]
+struct Report<'a> {
+    who: Who,
+    ty: AAA,
+    success: bool,
+    user: &'a str,
+    otherdata: Option<&'a str>,
+}
+
+pub fn get_config(controller: &str) -> TestConfig {
+    reqwest::blocking::get(format!("http://{controller}/server_config"))
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .unwrap()
+}
+
+pub async fn ready(controller: &str, server_addr: std::net::SocketAddr) {
+    reqwest::Client::new()
+        .post(format!("http://{controller}/ready"))
+        .body(server_addr.to_string())
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+}
+
+pub async fn report(
+    controller: &str,
+    ty: tacp::PacketType,
+    success: bool,
+    user: &str,
+    otherdata: Option<&str>,
+) {
     let ty = match ty {
-        tacp::PacketType::AUTHEN => "Authen",
-        tacp::PacketType::AUTHOR => "Author",
-        tacp::PacketType::ACCT => "Acct",
+        tacp::PacketType::AUTHEN => AAA::Authen,
+        tacp::PacketType::AUTHOR => AAA::Author,
+        tacp::PacketType::ACCT => AAA::Acct,
     };
-    let body = format!("{{
-        \"who\": \"Server\",
-        \"ty\": \"{ty}\",
-        \"success\":{success},
-        \"user\":\"{user}\",
-        \"otherdata\":\"{other}\"
-    }}");
-    let res = reqwest::Client::new()
-        .post(addr)
-        .header("Content-Type", "application/json")
-        .body(body)
-        .send().await;
-    dbg!(res.unwrap());
+    reqwest::Client::new()
+        .post(format!("http://{controller}/report"))
+        .json(&Report {
+            who: Who::Server,
+            ty,
+            success,
+            user,
+            otherdata,
+        })
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
 }

@@ -7,12 +7,8 @@ license.workspace = true
 
 [dependencies]
 tacp = { path = "../../tacp", features = ["obfuscation"] }
-tokio = { version = "~1.52.3", default-features = false, features = ["net", "rt", "io-util", "fs"] }
-hexdump = { version = "~0.1.2", default-features = false }
-smallvec = { version = "~1.15.1", default-features = false, features = ["write", "union"] }
-fnv = { version = "~1.0.7", default-features = false, features = ["std"] }
-yaml = { package = "strict-yaml-rust", version = "~0.2.0", default-features = false }
+tokio = { version = "~1.52.3", default-features = false, features = ["net", "rt", "io-util", "time"] }
 tracing = { version = "~0.1.44", default-features = false, features = ["attributes", "std", "tracing-attributes", "release_max_level_info"] }
-tracing-subscriber = { version = "~0.3.23", default-features = false, features = ["alloc", "ansi", "fmt", "nu-ansi-term", "registry", "sharded-slab", "smallvec", "std", "thread_local", "env-filter"] }
-regex = { version = "~1.12.3", default-features = false, features = ["std", "perf", "unicode"] }
-reqwest = { version = "~0.13.3", default-features = false, features = ["blocking"] }
+tracing-subscriber = { version = "~0.3.23", default-features = false, features = ["ansi", "fmt", "std"] }
+reqwest = { version = "~0.13.3", default-features = false, features = ["blocking", "json"] }
+serde = { version = "~1.0.228", default-features = false, features = ["derive"] }

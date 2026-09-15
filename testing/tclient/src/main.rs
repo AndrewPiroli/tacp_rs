@@ -18,7 +18,10 @@ enum NextPacket {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Subcommand)]
 enum Action {
-    AsciiLogin { username: Option<String> },
+    AsciiLogin {
+        username: Option<String>,
+        password: Option<String>,
+    },
     PAPLogin { username: String, password: Option<String> },
     Authorize {
         #[arg(short, long)]
@@ -62,11 +65,13 @@ fn main() {
     #[allow(unused_assignments)]
     let mut expected_reply = NextPacket::None;
     let mut seq_no = 1u8;
+    let mut ascii_password = None;
 
     let session_id = util::getrand();
     let header: PacketHeader;
     let mut pkt_bytes = match args.action {
-        Action::AsciiLogin { username } => {
+        Action::AsciiLogin { username, password } => {
+            ascii_password = password;
             let body = AuthenStartPacket::boxed_to_bytes(AuthenStartPacket::new(
                 AuthenStartAction::LOGIN,
                 15,
@@ -172,7 +177,7 @@ fn main() {
                     util::hexdump(&recv_body);
                     break;
                 }
-                handle_authen_reply(recv_parsed.unwrap(), &mut expected_reply, &mut stream, &mut seq_no, session_id, args.key.as_bytes());
+                handle_authen_reply(recv_parsed.unwrap(), &mut expected_reply, &mut stream, &mut seq_no, session_id, args.key.as_bytes(), &mut ascii_password);
             },
             NextPacket::AuthorReply => {
                 let recv_parsed = AuthorReplyPacket::try_from_bytes_ref(&recv_body);
@@ -238,7 +243,7 @@ fn main() {
     }
 }
 
-fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket, stream: &mut TcpStream, seq_no: &mut u8, session_id: u32, key: &[u8]) {
+fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket, stream: &mut TcpStream, seq_no: &mut u8, session_id: u32, key: &[u8], ascii_password: &mut Option<String>) {
     let blank = "";
     match packet.status {
         // Terminate
@@ -352,7 +357,9 @@ fn handle_authen_reply(packet: &AuthenReplyPacket, next_packet: &mut NextPacket,
                 println!();
             }
             println!("Server requests password!");
-            let pass = util::prompt_user_input("Enter password: ", true);
+            let pass = ascii_password
+                .take()
+                .unwrap_or_else(|| util::prompt_user_input("Enter password: ", true));
             let mut reply_body =
                 AuthenContinuePacket::boxed_to_bytes(AuthenContinuePacket::new(AuthenContinueFlags(0), pass.as_bytes(), blank.as_bytes()).unwrap());
             let reply_header = PacketHeader::new(Version::VersionDefault, PacketType::AUTHEN, *seq_no, Flags(0), session_id, reply_body.len() as u32);

@@ -5,12 +5,11 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
+[dev-dependencies]
 axum = { version = "~0.8.9", default-features = false, features = ["http1", "json", "tokio", "macros"] }
 escargot = { version = "~0.5.15", default-features = false }
-tokio = { version = "~1.52.3", default-features = false, features = ["net", "rt", "io-util", "fs"] }
+tokio = { version = "~1.52.3", default-features = false, features = ["net", "rt"] }
 serde = { version = "~1.0.228", default-features = false, features = ["derive"] }
-axum-extra = { version = "~0.12.6", default-features = false, features = ["with-rejection"] }
 # which = "7.0.2"
 pcap-file = { version = "~3.0.0-rc.2", default-features = false }
 tacp = { path = "../../tacp", features = ["obfuscation"] }

@@ -41,20 +41,24 @@ ROADMAP:
 
 ## Testing infrastructure
 
-### tserver - Basic testing server
+### tserver - Integration-test fixture
 
-A TACACS+ server with enough features to test most client operations.
+A controller-configured TACACS+ fixture used by `ttest`. It supports the authentication,
+authorization, and accounting operations emitted by `tclient`; it is not a standalone server.
 
 ### tclient - Basic testing client
 
 A basic TACACS+ client that can make requests to a server.
 
-### ttest - A WIP testing system
+### ttest - Integration and protocol tests
 
 Current features:
  - runs the test client and server against each other.
  - Reads pcap files from the pcap directory and ensures all TACACS+ packets within can be parsed.
  - Supports running under miri with a reduced set of tests
+
+Run the complete suite with `cargo test -p ttest`. Run the reduced interpreter-compatible
+suite with `cargo miri test -p ttest`.
 
 Other projects we can test interop with in the future:
 

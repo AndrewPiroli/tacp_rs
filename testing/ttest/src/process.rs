@@ -1,123 +1,114 @@
-use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::mpsc;
-use std::thread;
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
-#[allow(dead_code)]
 pub struct ProcessHandle {
-    pub stdin: mpsc::Sender<String>,
-    pub stdout: mpsc::Receiver<String>,
-    pub stderr: mpsc::Receiver<String>,
     process: Child,
-    dead: bool,
-    pub exit: Option<ExitStatus>,
+    stdout: Arc<Mutex<String>>,
+    stderr: Arc<Mutex<String>>,
+    readers: Vec<JoinHandle<()>>,
+    status: Option<ExitStatus>,
 }
-impl Drop for ProcessHandle {
-    fn drop(&mut self) {
-        self.kill();
-    }
-}
+
 impl ProcessHandle {
-    pub fn kill(&mut self) {
-        if !self.dead {
-            self.dead = true;
+    pub fn wait(&mut self, timeout: Duration) -> std::io::Result<Option<ExitStatus>> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = self.process.try_wait()? {
+                self.status = Some(status);
+                self.join_readers();
+                return Ok(Some(status));
+            }
+            if Instant::now() >= deadline {
+                return Ok(None);
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    pub fn output(&self) -> (String, String) {
+        (
+            self.stdout.lock().unwrap().clone(),
+            self.stderr.lock().unwrap().clone(),
+        )
+    }
+
+    pub fn terminate(&mut self) {
+        if self.status.is_none() {
             match self.process.try_wait() {
-                Ok(de) => {
-                    match de {
-                        Some(ex) => self.exit = Some(ex),
-                        None => {
-                            let _ = self.process.kill();
-                            self.exit = Some(self.process.wait().unwrap());
-                        },
-                    }
-                },
+                Ok(Some(status)) => self.status = Some(status),
+                Ok(None) => {
+                    let _ = self.process.kill();
+                    self.status = self.process.wait().ok();
+                }
                 Err(_) => {
-                    panic!("{:?}", self.process.kill());
-                },
+                    let _ = self.process.kill();
+                    self.status = self.process.wait().ok();
+                }
             }
         }
+        self.join_readers();
+    }
+
+    fn join_readers(&mut self) {
+        for reader in self.readers.drain(..) {
+            let _ = reader.join();
+        }
+    }
+}
+
+impl Drop for ProcessHandle {
+    fn drop(&mut self) {
+        self.terminate();
     }
 }
 
 pub fn cargo_run(bin: &str, args: &[&str], envs: &[(&str, &str)]) -> ProcessHandle {
-    let mut bin_cmd = escargot::CargoBuild::new()
+    let mut command = escargot::CargoBuild::new()
+        .package(bin)
         .bin(bin)
         .current_release()
         .current_target()
         .run()
-        .unwrap()
+        .unwrap_or_else(|error| panic!("failed to build {bin}: {error}"))
         .command();
-    bin_cmd.args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env_clear();
-    // .envs didn't work...
-    for env in envs {
-        bin_cmd.env(OsString::from(env.0), OsString::from(env.1));
-    }
-    spawn(bin_cmd)
+    command.args(args).stdin(Stdio::null());
+    command.envs(envs.iter().copied());
+    spawn(command)
 }
 
+fn spawn(mut command: Command) -> ProcessHandle {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command.spawn().expect("failed to spawn process");
+    let stdout = Arc::new(Mutex::new(String::new()));
+    let stderr = Arc::new(Mutex::new(String::new()));
 
-pub fn spawn(mut cmd: Command) -> ProcessHandle {
-    let mut child = cmd.spawn().expect("Failed to spawn process");
+    let stdout_reader = child.stdout.take().expect("failed to capture stdout");
+    let stdout_output = Arc::clone(&stdout);
+    let stdout_thread = thread::spawn(move || read_lines(stdout_reader, stdout_output));
 
-    let child_stdin = child.stdin.take().expect("Failed to open child stdin");
-    let child_stdout = child.stdout.take().expect("Failed to open child stdout");
-    let child_stderr = child.stderr.take().expect("Failed to open child stderr");
-
-    let (stdin_tx, stdin_rx) = mpsc::channel::<String>();
-    let (stdout_tx, stdout_rx) = mpsc::channel::<String>();
-    let (stderr_tx, stderr_rx) = mpsc::channel::<String>();
-
-    // stdin
-    thread::spawn(move || {
-        let mut stdin = child_stdin;
-        while let Ok(msg) = stdin_rx.recv() {
-            if writeln!(stdin, "{}", msg).is_err() {
-                break;
-            }
-            let _ = stdin.flush();
-        }
-    });
-    // stdout
-    thread::spawn(move || {
-        let reader = BufReader::new(child_stdout);
-        for line in reader.lines() {
-            match line {
-                Ok(l) => {
-                    if stdout_tx.send(l).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-    });
-
-    // stderr
-    thread::spawn(move || {
-        let reader = BufReader::new(child_stderr);
-        for line in reader.lines() {
-            match line {
-                Ok(l) => {
-                    if stderr_tx.send(l).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-    });
+    let stderr_reader = child.stderr.take().expect("failed to capture stderr");
+    let stderr_output = Arc::clone(&stderr);
+    let stderr_thread = thread::spawn(move || read_lines(stderr_reader, stderr_output));
 
     ProcessHandle {
-        stdin: stdin_tx,
-        stdout: stdout_rx,
-        stderr: stderr_rx,
         process: child,
-        dead: false,
-        exit: None,
+        stdout,
+        stderr,
+        readers: vec![stdout_thread, stderr_thread],
+        status: None,
+    }
+}
+
+fn read_lines(reader: impl std::io::Read, output: Arc<Mutex<String>>) {
+    for line in BufReader::new(reader).lines() {
+        let Ok(line) = line else {
+            break;
+        };
+        let mut output = output.lock().unwrap();
+        output.push_str(&line);
+        output.push('\n');
     }
 }
