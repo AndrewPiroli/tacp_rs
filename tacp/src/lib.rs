@@ -2112,7 +2112,7 @@ impl AcctRequestPacket {
             mem[5] = user.len() as u8;
             mem[6] = port.len() as u8;
             mem[7] = rem_addr.len() as u8;
-            mem[9] = args.len() as u8;
+            mem[8] = args.len() as u8;
         }
         let fixed_part = Self::base_size();
         let mut varidata_ptr = fixed_part + args.len();
