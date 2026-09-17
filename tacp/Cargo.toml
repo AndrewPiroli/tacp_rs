@@ -26,3 +26,4 @@ doc_markdown = "allow"
 pedantic = "warn"
 must_use_candidate = "allow"
 nursery = "warn"
+empty_enums = "allow" # upstream bug in zerocopy
