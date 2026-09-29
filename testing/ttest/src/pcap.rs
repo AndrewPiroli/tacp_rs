@@ -17,7 +17,7 @@ fn embedded_pcaps_can_be_parsed() {
         while let Some(packet) = reader.next_packet() {
             let packet = packet
                 .unwrap_or_else(|error| panic!("failed reading a packet from `{name}`: {error}"));
-            let data = packet.data();
+            let data = packet.data;
             if data.len() <= 60 {
                 continue;
             }
