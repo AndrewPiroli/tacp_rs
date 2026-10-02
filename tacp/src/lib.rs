@@ -149,6 +149,8 @@ use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes
 
 pub mod argvalpair;
 #[cfg(feature = "obfuscation")]
+mod md5;
+#[cfg(feature = "obfuscation")]
 pub mod obfuscation;
 
 /// Helper macro to precheck packet components before performing narrowing casts.

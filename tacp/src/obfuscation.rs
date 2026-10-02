@@ -57,7 +57,7 @@
 //! Commonly, such failures are seen when the keys are mismatched between the client and the
 //! TACACS+ server.
 use crate::PacketHeader;
-use md5::{Digest, Md5};
+use crate::md5::Md5;
 
 /// Iterator that generates the pseudo random PAD for obfuscation of TACACS+ packets
 pub struct TacacsMd5Pad<'a> {
@@ -90,7 +90,7 @@ impl<'a> TacacsMd5Pad<'a> {
         s.md5_state.update(&s.header_data[0..4]);
         s.md5_state.update(shared_secret);
         s.md5_state.update(&s.header_data[4..6]);
-        s.md5_state.finalize_into_reset((&mut s.md5_buf).into());
+        s.md5_buf = s.md5_state.finalize_reset();
         s
     }
 }
@@ -110,9 +110,8 @@ impl Iterator for TacacsMd5Pad<'_> {
             self.md5_state.update(&self.header_data[0..4]);
             self.md5_state.update(self.shared_secret);
             self.md5_state.update(&self.header_data[4..6]);
-            self.md5_state.update(self.md5_buf.iter());
-            self.md5_state
-                .finalize_into_reset((&mut self.md5_buf).into());
+            self.md5_state.update(&self.md5_buf);
+            self.md5_buf = self.md5_state.finalize_reset();
             self.remaining -= 1;
             self.buf_ptr = 15;
             p = 16;

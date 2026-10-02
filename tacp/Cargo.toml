@@ -10,13 +10,12 @@ doctest = false
 
 [dependencies]
 bitflags = { version = "~2.13.2", default-features = false }
-md5 = { package = "md-5", version = "~0.11.0", default-features = false, optional = true }
 zerocopy = { version = "~0.8.59", default-features = false }
 zerocopy-derive = { version = "~0.8.59", default-features = false }
 
 [features]
 default = ["obfuscation"]
-obfuscation = ["dep:md5"]
+obfuscation = []
 expose_zerocopy = []
 
 [lints.clippy]
